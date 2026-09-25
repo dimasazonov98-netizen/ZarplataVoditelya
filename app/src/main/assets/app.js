@@ -206,3 +206,178 @@ $('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{c
 
 window.addEventListener('resize',()=>{if($('home').classList.contains('active'))renderHome();if($('stats').classList.contains('active'))renderStats()});
 populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();setTimeout(persistNativeBackup,500);
+
+/* Voice input 1.3.0 */
+const RU_NUMBERS={
+  'ноль':0,'нуль':0,'один':1,'одна':1,'одно':1,'первый':1,
+  'два':2,'две':2,'второй':2,'три':3,'третий':3,'четыре':4,'четвертый':4,
+  'пять':5,'шесть':6,'семь':7,'восемь':8,'девять':9,'десять':10,
+  'одиннадцать':11,'двенадцать':12,'тринадцать':13,'четырнадцать':14,'пятнадцать':15,
+  'шестнадцать':16,'семнадцать':17,'восемнадцать':18,'девятнадцать':19,
+  'двадцать':20,'тридцать':30,'сорок':40,'пятьдесят':50,'шестьдесят':60,
+  'семьдесят':70,'восемьдесят':80,'девяносто':90,
+  'сто':100,'двести':200,'триста':300,'четыреста':400,'пятьсот':500,
+  'шестьсот':600,'семьсот':700,'восемьсот':800,'девятьсот':900
+};
+
+function voiceNormalize(s){
+  return String(s||'').toLowerCase().replace(/ё/g,'е').replace(/[–—]/g,'-').replace(/\s+/g,' ').trim();
+}
+function spokenNumber(chunk){
+  const s=voiceNormalize(chunk);
+  const digit=s.match(/\d+/);
+  if(digit) return Number(digit[0]);
+  let total=0,current=0,found=false;
+  for(const token of s.replace(/-/g,' ').split(/\s+/)){
+    if(token==='тысяча'||token==='тысячи'||token==='тысяч'){
+      total+=(current||1)*1000; current=0; found=true;
+    } else if(Object.prototype.hasOwnProperty.call(RU_NUMBERS,token)){
+      current+=RU_NUMBERS[token]; found=true;
+    }
+  }
+  return found?total+current:null;
+}
+function shiftDate(days){
+  const d=new Date(); d.setDate(d.getDate()+days);
+  const z=d.getTimezoneOffset()*60000;
+  return new Date(d-z).toISOString().slice(0,10);
+}
+function extractUnitCount(t, nounPattern){
+  let m=t.match(new RegExp('(\\d+|[а-я]+(?:\\s+[а-я]+){0,2})\\s+(?:'+nounPattern+')'));
+  if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
+  m=t.match(new RegExp('(?:'+nounPattern+')\\s+(\\d+|[а-я]+(?:\\s+[а-я]+){0,2})'));
+  if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
+  return null;
+}
+function showVoiceToast(title,text,timeout=4500){
+  const box=$('voiceToast'),t=$('voiceToastTitle'),p=$('voiceToastText');
+  if(!box||!t||!p)return;
+  t.textContent=title;p.textContent=text;box.classList.add('show');
+  clearTimeout(showVoiceToast.timer);
+  if(timeout) showVoiceToast.timer=setTimeout(()=>box.classList.remove('show'),timeout);
+}
+function setVoiceActive(active){
+  const b=$('voiceFab'); if(b)b.classList.toggle('listening',!!active);
+  const f=$('voiceFormBtn'); if(f)f.textContent=active?'🎙 Слушаю…':'🎙 Заполнить смену голосом';
+}
+function startVoiceEntry(){
+  showPage('add');
+  if(!nativeAvailable() || typeof AndroidData.startVoiceInput!=='function'){
+    showVoiceToast('Голосовой ввод','Эта функция доступна в Android-приложении.');
+    return;
+  }
+  try{
+    if(typeof AndroidData.isVoiceAvailable==='function' && !AndroidData.isVoiceAvailable()){
+      showVoiceToast('Голосовой ввод','На телефоне не найден системный сервис распознавания речи.');
+      return;
+    }
+    setVoiceActive(true);
+    showVoiceToast('Говорите…','Например: «до трёх тонн, пробег 240, без грузчика, второй рейс».',0);
+    AndroidData.startVoiceInput();
+  }catch(e){
+    setVoiceActive(false);
+    showVoiceToast('Голосовой ввод','Не удалось запустить микрофон.');
+  }
+}
+function parseVoiceShift(raw){
+  const t=voiceNormalize(raw);
+  if(!t) return {changed:false,save:false,summary:'Пустая фраза'};
+
+  if(/^(отмена|отмени|не надо|закрой)$/.test(t)){
+    resetForm(); showPage('home');
+    return {changed:false,cancel:true,save:false,summary:'Ввод отменён'};
+  }
+
+  const saveRequested=/\b(сохрани|сохранить|запиши|записать)\b/.test(t);
+  const hasDetails=/(пробег|километр|тонн|грузчик|рейс|баллон|стойк|доплат|комментар)/.test(t);
+  if(saveRequested && !hasDetails){
+    if($('add').classList.contains('active')){
+      $('saveTrip').click();
+      return {changed:false,save:true,summary:'Смена сохранена'};
+    }
+  }
+
+  showPage('add');
+  let changed=false;
+
+  if(/\bпозавчера\b/.test(t)){$('date').value=shiftDate(-2);changed=true}
+  else if(/\bвчера\b/.test(t)){$('date').value=shiftDate(-1);changed=true}
+  else if(/\bзавтра\b/.test(t)){$('date').value=shiftDate(1);changed=true}
+  else if(/\bсегодня\b/.test(t)){$('date').value=todayLocal();changed=true}
+
+  if(/(?:до\s*(?:3|трех)|до\s+трех)\s*(?:т|тонн|тонны)?\b/.test(t)){
+    $('weight').value='2-3'; changed=true;
+  } else if(/(?:3\s*[- ]\s*4|от\s+трех\s+до\s+четырех|три\s+четыре)\s*(?:т|тонн|тонны)?\b/.test(t)){
+    $('weight').value='3-4'; changed=true;
+  } else if(/(?:4\s*[- ]\s*5|от\s+четырех\s+до\s+пяти|четыре\s+пять)\s*(?:т|тонн|тонны)?\b/.test(t)){
+    $('weight').value='4-5'; changed=true;
+  }
+
+  let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\s+(.+?)(?=\s+(?:без\s+грузчика|с\s+грузчиком|второй\s+рейс|2(?:-?й)?\s+рейс|баллон\w*|стойк\w*|доплат\w*|комментар\w*)|$)/);
+  let mileage=mm?spokenNumber(mm[1]):null;
+  if(mileage===null){
+    mm=t.match(/(\d{2,4})\s*(?:км|километр\w*)\b/);
+    mileage=mm?Number(mm[1]):null;
+  }
+  if(mileage!==null && mileage>=0){$('mileage').value=mileage;changed=true}
+
+  if(/\bбез\s+грузчика\b/.test(t)){$('noLoader').checked=true;changed=true}
+  else if(/\bс\s+грузчиком\b/.test(t)){$('noLoader').checked=false;changed=true}
+
+  if(/\b(?:второй|2(?:-?й)?|два)\s+рейс/.test(t)){$('secondTrip').checked=true;changed=true}
+  else if(/\bодин\s+рейс\b/.test(t)){$('secondTrip').checked=false;changed=true}
+
+  const balloons=extractUnitCount(t,'баллон(?:а|ов|ы)?');
+  if(balloons!==null){$('balloons').value=balloons;changed=true}
+  const racks=extractUnitCount(t,'стойк(?:а|и|у|ой)?|стоек');
+  if(racks!==null){$('racks').value=racks;changed=true}
+
+  const extraMatch=t.match(/(?:доплата|доплату|доплатить)\s+([^,.;]{1,30}?)(?=\s+(?:комментар|баллон|стойк|рейс|без\s+грузчика)|$)/);
+  if(extraMatch){
+    const extra=spokenNumber(extraMatch[1]);
+    if(extra!==null){$('manualExtra').value=extra;changed=true}
+  }
+
+  const commentMatch=raw.match(/(?:комментарий|заметка)\s+(.+)$/i);
+  if(commentMatch){$('comment').value=commentMatch[1].trim();changed=true}
+
+  const total=calculate();
+  if(saveRequested && changed){
+    setTimeout(()=>$('saveTrip').click(),250);
+    return {changed:true,save:true,summary:'Распознано. Смена будет сохранена. Итого '+RUB(total)};
+  }
+
+  const parts=[];
+  parts.push($('weight').options[$('weight').selectedIndex].text);
+  if(val('mileage'))parts.push(val('mileage')+' км');
+  if($('noLoader').checked)parts.push('без грузчика');
+  if($('secondTrip').checked)parts.push('второй рейс');
+  if(val('balloons'))parts.push('баллоны: '+val('balloons'));
+  if(val('racks'))parts.push('стойки: '+val('racks'));
+  return {changed,save:false,summary:(changed?parts.join(' · ')+' · Итого '+RUB(total):'Не удалось найти параметры смены')};
+}
+
+window.onVoiceState=state=>{
+  if(state==='listening'||state==='speaking'){
+    setVoiceActive(true);
+    showVoiceToast('Говорите…','Назовите параметры смены.',0);
+  } else if(state==='processing'){
+    showVoiceToast('Распознаю…','Секунду, разбираю фразу.',0);
+  }
+};
+window.onVoicePartial=text=>{
+  setVoiceActive(true);
+  showVoiceToast('Слышу…',text,0);
+};
+window.onVoiceResult=text=>{
+  setVoiceActive(false);
+  const r=parseVoiceShift(text);
+  showVoiceToast(r.save?'Готово':'Распознано','«'+text+'»\n'+r.summary,r.save?3000:6500);
+};
+window.onVoiceError=msg=>{
+  setVoiceActive(false);
+  showVoiceToast('Голосовой ввод',msg,4500);
+};
+
+if($('voiceFab')) $('voiceFab').onclick=startVoiceEntry;
+if($('voiceFormBtn')) $('voiceFormBtn').onclick=startVoiceEntry;
