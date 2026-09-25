@@ -38,3 +38,18 @@ textarea{min-height:80px;resize:vertical}input:focus,select:focus,textarea:focus
 .fab{position:fixed;right:max(18px,calc((100vw - 760px)/2 + 18px));bottom:calc(116px + env(safe-area-inset-bottom));width:66px;height:66px;border-radius:50%;border:1px solid #f6dc9a;background:radial-gradient(circle at 32% 28%,#ffe9aa,#dfa94e 61%,#996828 100%);color:#251604;font-size:40px;box-shadow:0 16px 34px rgba(223,169,78,.32);z-index:25}
 @media(max-width:520px){.app{padding-left:12px;padding-right:12px}.hero{padding:16px}.hero-total{font-size:44px}.hero-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.stat{padding:10px 8px}.stat b{font-size:14px}.grid2{grid-template-columns:1fr 1fr}.calendar{gap:4px}.nav-in{gap:3px}.navbtn{font-size:9px}.chart-wrap{height:195px}}
 @media(max-width:370px){.hero-grid{grid-template-columns:1fr}.grid2,.grid3{grid-template-columns:1fr}.fab{right:14px}}
+/* Android Luxe background fix 1.2.1 */
+body::before,body::after{display:none!important}
+body{position:relative;background:#020810}
+.bg-layer{
+  position:fixed;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:center;
+  filter:brightness(.62) saturate(1.08);
+  z-index:0;pointer-events:none
+}
+.bg-overlay{
+  position:fixed;inset:0;
+  background:linear-gradient(180deg,rgba(2,7,16,.26),rgba(1,7,15,.48) 28%,rgba(1,6,13,.76) 72%,rgba(1,6,13,.90));
+  z-index:1;pointer-events:none
+}
+.app{position:relative;z-index:2}
