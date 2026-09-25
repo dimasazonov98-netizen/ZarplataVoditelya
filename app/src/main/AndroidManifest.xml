@@ -2,8 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
-        android:label="Зарплата водителя"
+        android:icon="@drawable/ic_launcher_luxe"
+        android:roundIcon="@drawable/ic_launcher_luxe"
+        android:label="Зарплата 2.0 Luxe"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <activity
