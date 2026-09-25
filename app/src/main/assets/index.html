@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Зарплата водителя</title>
+<style>
+:root{--bg:#07111f;--card:#101c2f;--text:#f8fafc;--muted:#91a0b5;--line:#22314a;--green:#22c55e;--green2:#16a34a}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#07111f,#0b1628);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh;padding:16px}
+.wrap{max-width:700px;margin:auto}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px;margin:12px 0}
+h1{font-size:24px;margin:4px 0}.muted{color:var(--muted);font-size:13px}.hero{font-size:36px;font-weight:900;margin:8px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;font-size:12px;color:#cbd5e1;margin:10px 0 6px}
+input,select,button{width:100%;font:inherit}input,select{padding:13px;border-radius:14px;border:1px solid #334155;background:#0b1628;color:#fff}
+.toggle{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px;background:#0b1628}
+.toggle input{width:22px;height:22px}.total{font-size:30px;font-weight:900;margin:6px 0}.break{font-size:12px;line-height:1.6;color:#cbd5e1}
+.primary{border:0;border-radius:15px;padding:14px;background:linear-gradient(180deg,var(--green),var(--green2));color:#052e16;font-weight:900;margin-top:12px}
+.item{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:12px 0}.item:first-child{border-top:0}
+.small{font-size:12px;color:var(--muted)}.danger{width:auto;background:transparent;color:#fecaca;border:1px solid #7f1d1d;border-radius:10px;padding:7px 9px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tabs button{border:1px solid var(--line);background:#0b1628;color:#fff;border-radius:13px;padding:12px}
+.page{display:none}.page.active{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs">
+    <button onclick="page('add')">Новая смена</button>
+    <button onclick="page('history')">История</button>
+  </div>
+
+  <section id="add" class="page active">
+    <div class="card">
+      <h1>Зарплата водителя</h1>
+      <div class="muted">Автоматический расчёт смены</div>
+      <div class="hero" id="monthTotal">0 ₽</div>
+      <div class="small">Доход за текущий месяц</div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div><label>Дата</label><input id="date" type="date"></div>
+        <div><label>Вес</label>
+          <select id="weight">
+            <option value="2-3">до 3 т</option>
+            <option value="3-4">3–4 т</option>
+            <option value="4-5">4–5 т</option>
+          </select>
+        </div>
+      </div>
+      <label>Пробег, км</label><input id="mileage" type="number" min="0" inputmode="numeric">
+
+      <div class="toggle"><span>Без грузчика <small>+1500 ₽</small></span><input id="noLoader" type="checkbox"></div>
+      <div class="toggle"><span>Второй рейс <small>+4000 ₽</small></span><input id="secondTrip" type="checkbox"></div>
+
+      <div class="grid">
+        <div><label>Баллоны, шт.</label><input id="balloons" type="number" min="0" value="0"></div>
+        <div><label>Стойки, шт.</label><input id="racks" type="number" min="0" value="0"></div>
+      </div>
+
+      <label>Доплата вручную, ₽</label><input id="extra" type="number" value="0">
+      <label>Комментарий</label><input id="comment" type="text">
+
+      <div style="margin-top:16px">
+        <div class="small">Итого за смену</div>
+        <div class="total" id="total">0 ₽</div>
+        <div class="break" id="breakdown"></div>
+      </div>
+      <button class="primary" onclick="saveShift()">Сохранить смену</button>
+    </div>
+  </section>
+
+  <section id="history" class="page">
+    <div class="card">
+      <h1>История</h1>
+      <div class="muted" id="historySummary"></div>
+    </div>
+    <div class="card" id="list"></div>
+  </section>
+</div>
+<script>
+const R={base:{"2-3":5200,"3-4":5500,"4-5":5800},noLoader:1500,balloon:200,rack:150,second:4000,
+over180:{"2-3":1500,"3-4":1700,"4-5":1700},over400:{"2-3":2200,"3-4":2500,"4-5":2500}};
+const K='zarplata_android_v1',$=id=>document.getElementById(id),rub=n=>new Intl.NumberFormat('ru-RU').format(Math.round(n||0))+' ₽';
+function today(){const d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString().slice(0,10)}
+$('date').value=today();
+function trips(){return JSON.parse(localStorage.getItem(K)||'[]')} function save(a){localStorage.setItem(K,JSON.stringify(a))}
+function calc(){
+ let w=$('weight').value,m=+$('mileage').value||0,b=+$('balloons').value||0,r=+$('racks').value||0,e=+$('extra').value||0,t=R.base[w],p=[`База: ${rub(t)}`];
+ if($('noLoader').checked){t+=R.noLoader;p.push(`Без грузчика: +${rub(R.noLoader)}`)}
+ if($('secondTrip').checked){t+=R.second;p.push(`Второй рейс: +${rub(R.second)}`)}
+ if(b){t+=b*R.balloon;p.push(`Баллоны ×${b}: +${rub(b*R.balloon)}`)}
+ if(r){t+=r*R.rack;p.push(`Стойки ×${r}: +${rub(r*R.rack)}`)}
+ if(m>=400){t+=R.over400[w];p.push(`Пробег 400+: +${rub(R.over400[w])}`)}
+ else if(m>=180){t+=R.over180[w];p.push(`Пробег 180+: +${rub(R.over180[w])}`)}
+ if(e){t+=e;p.push(`Доплата: ${e>=0?'+':''}${rub(e)}`)}
+ $('total').textContent=rub(t);$('breakdown').innerHTML=p.join('<br>');return t
+}
+['weight','mileage','balloons','racks','extra','noLoader','secondTrip'].forEach(x=>{$(x).addEventListener('input',calc);$(x).addEventListener('change',calc)});
+function saveShift(){
+ const a=trips();a.push({id:Date.now(),date:$('date').value||today(),weight:$('weight').value,mileage:+$('mileage').value||0,noLoader:$('noLoader').checked,secondTrip:$('secondTrip').checked,balloons:+$('balloons').value||0,racks:+$('racks').value||0,extra:+$('extra').value||0,comment:$('comment').value.trim(),total:calc()});save(a);
+ $('mileage').value='';$('balloons').value=0;$('racks').value=0;$('extra').value=0;$('comment').value='';$('noLoader').checked=false;$('secondTrip').checked=false;calc();render();alert('Смена сохранена')
+}
+function del(id){if(confirm('Удалить смену?')){save(trips().filter(x=>x.id!==id));render()}}
+window.del=del;
+function render(){
+ const a=trips().sort((x,y)=>String(y.date).localeCompare(String(x.date))||y.id-x.id),mk=today().slice(0,7),cur=a.filter(x=>x.date.slice(0,7)===mk),sum=cur.reduce((s,x)=>s+(+x.total||0),0);
+ $('monthTotal').textContent=rub(sum);$('historySummary').textContent=`${a.length} смен · всего ${rub(a.reduce((s,x)=>s+(+x.total||0),0))}`;
+ $('list').innerHTML=a.length?a.map(x=>`<div class="item"><div><b>${new Date(x.date+'T12:00').toLocaleDateString('ru-RU')} · ${x.weight} т</b><div class="small">${x.mileage?x.mileage+' км · ':''}${x.noLoader?'без грузчика · ':''}${x.secondTrip?'второй рейс · ':''}${x.comment||''}</div><button class="danger" onclick="del(${x.id})">Удалить</button></div><b>${rub(x.total)}</b></div>`).join(''):'<div class="small">Смен пока нет</div>'
+}
+function page(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');render()}
+window.page=page;calc();render();
+</script>
+</body>
+</html>
