@@ -14,7 +14,7 @@
 
 <section id="home" class="page active">
   <div class="topbar">
-    <div class="brand"><strong>Зарплата <span class="brand-accent">2.0</span></strong><small>Для тех, кто за рулём · v1.3.1</small></div>
+    <div class="brand"><strong>Зарплата <span class="brand-accent">2.0</span></strong><small>Для тех, кто за рулём · v1.3.2</small></div>
     <button class="iconbtn" onclick="showPage('settings')">⚙</button>
   </div>
 
@@ -89,7 +89,7 @@
 <section id="add" class="page">
   <div class="topbar"><div class="brand">Новая смена<small>Расчёт происходит автоматически</small></div></div>
   <div class="card">
-    <button id="voiceFormBtn" class="voice-inline" type="button">🎙 Заполнить смену голосом</button>
+    <button id="voiceFormBtn" class="voice-inline" type="button" onclick="location.href='driverapp://voice'">🎙 Заполнить смену голосом</button>
     <div class="voice-hint">Например: «до трёх тонн, пробег 240, без грузчика, второй рейс, два баллона»</div>
     <div class="grid2">
       <div><label>Дата</label><input id="date" type="date"></div>
@@ -166,7 +166,7 @@
 
 </div>
 
-<button class="voice-fab" id="voiceFab" aria-label="Голосовой ввод">🎙</button>
+<button class="voice-fab" id="voiceFab" aria-label="Голосовой ввод" onclick="location.href='driverapp://voice'">🎙</button>
 <button class="fab" id="fab">＋</button>
 <div class="voice-toast" id="voiceToast"><div class="voice-toast-title" id="voiceToastTitle">Голосовой ввод</div><div class="voice-toast-text" id="voiceToastText">Нажмите микрофон и назовите параметры смены</div></div>
 
