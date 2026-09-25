@@ -262,17 +262,13 @@ function setVoiceActive(active){
 }
 function startVoiceEntry(){
   showPage('add');
-  if(!nativeAvailable() || typeof AndroidData.startVoiceInput!=='function'){
-    showVoiceToast('Голосовой ввод','Эта функция доступна в Android-приложении.');
-    return;
-  }
   try{
     setVoiceActive(true);
-    showVoiceToast('Говорите…','Например: «до трёх тонн, пробег 240, без грузчика, второй рейс».',0);
-    AndroidData.startVoiceInput();
+    showVoiceToast('Говорите…','Открываю системный голосовой ввод Android…',0);
+    window.location.href='driverapp://voice';
   }catch(e){
     setVoiceActive(false);
-    showVoiceToast('Голосовой ввод','Не удалось запустить микрофон.');
+    showVoiceToast('Голосовой ввод','Не удалось открыть системный голосовой ввод.');
   }
 }
 function parseVoiceShift(raw){
