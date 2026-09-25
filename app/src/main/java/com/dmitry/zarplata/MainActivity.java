@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int STORAGE_PERMISSION_REQUEST = 1002;
     private static final int VOICE_PERMISSION_REQUEST = 1003;
+    private static final int VOICE_INTENT_REQUEST = 1004;
     private static final String PREFS = "driver_salary_native_backup";
     private static final String PREF_STATE = "state_json";
     private static final String BACKUP_FILE = "zarplata_voditelya_auto_backup.json";
@@ -135,15 +136,11 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean isVoiceAvailable() {
-            return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
+            return SpeechRecognizer.isRecognitionAvailable(MainActivity.this) || canLaunchVoiceIntent();
         }
     }
 
     private void requestVoiceInput() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            sendVoiceError("Распознавание речи недоступно на этом телефоне");
-            return;
-        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             startVoiceAfterPermission = true;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, VOICE_PERMISSION_REQUEST);
@@ -153,6 +150,11 @@ public class MainActivity extends Activity {
     }
 
     private void startVoiceRecognition() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            launchVoiceIntent();
+            return;
+        }
+
         if (speechRecognizer != null) {
             try { speechRecognizer.destroy(); } catch (Exception ignored) {}
         }
@@ -180,8 +182,12 @@ public class MainActivity extends Activity {
                         message = "Ошибка сети при распознавании";
                         break;
                     case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                        message = "Микрофон занят, попробуйте ещё раз";
-                        break;
+                        launchVoiceIntent();
+                        return;
+                    case SpeechRecognizer.ERROR_CLIENT:
+                    case SpeechRecognizer.ERROR_SERVER:
+                        launchVoiceIntent();
+                        return;
                     default:
                         message = "Ошибка голосового ввода";
                 }
@@ -217,6 +223,30 @@ public class MainActivity extends Activity {
 
         sendVoiceState("starting");
         speechRecognizer.startListening(intent);
+    }
+
+    private boolean canLaunchVoiceIntent() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        return intent.resolveActivity(getPackageManager()) != null;
+    }
+
+    private void launchVoiceIntent() {
+        try {
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU");
+            intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+            intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Назовите параметры смены");
+            if (intent.resolveActivity(getPackageManager()) == null) {
+                sendVoiceError("На телефоне нет службы распознавания речи");
+                return;
+            }
+            sendVoiceState("listening");
+            startActivityForResult(intent, VOICE_INTENT_REQUEST);
+        } catch (Exception e) {
+            sendVoiceError("Не удалось открыть голосовой ввод");
+        }
     }
 
     private void sendVoiceState(String state) {
@@ -355,6 +385,19 @@ public class MainActivity extends Activity {
             Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
             filePathCallback.onReceiveValue(results);
             filePathCallback = null;
+            return;
+        }
+        if (requestCode == VOICE_INTENT_REQUEST) {
+            if (resultCode == RESULT_OK && data != null) {
+                ArrayList<String> results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                if (results != null && !results.isEmpty()) {
+                    sendVoiceResult(results.get(0));
+                } else {
+                    sendVoiceError("Не удалось разобрать фразу");
+                }
+            } else {
+                sendVoiceError("Голосовой ввод отменён");
+            }
         }
     }
 
