@@ -23,6 +23,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
 import android.graphics.Color;
 
 import org.json.JSONObject;
@@ -74,7 +75,26 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(true);
 
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidData");
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && url.startsWith("driverapp://voice")) {
+                    launchVoiceIntent();
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri uri = request != null ? request.getUrl() : null;
+                if (uri != null && "driverapp".equals(uri.getScheme()) && "voice".equals(uri.getHost())) {
+                    launchVoiceIntent();
+                    return true;
+                }
+                return false;
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(
@@ -131,7 +151,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void startVoiceInput() {
-            runOnUiThread(() -> requestVoiceInput());
+            runOnUiThread(() -> launchVoiceIntent());
         }
 
         @JavascriptInterface
@@ -141,12 +161,7 @@ public class MainActivity extends Activity {
     }
 
     private void requestVoiceInput() {
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            startVoiceAfterPermission = true;
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, VOICE_PERMISSION_REQUEST);
-            return;
-        }
-        startVoiceRecognition();
+        launchVoiceIntent();
     }
 
     private void startVoiceRecognition() {
