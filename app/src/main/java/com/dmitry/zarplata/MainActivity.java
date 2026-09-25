@@ -14,6 +14,9 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -21,6 +24,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.graphics.Color;
+
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -30,10 +35,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1001;
     private static final int STORAGE_PERMISSION_REQUEST = 1002;
+    private static final int VOICE_PERMISSION_REQUEST = 1003;
     private static final String PREFS = "driver_salary_native_backup";
     private static final String PREF_STATE = "state_json";
     private static final String BACKUP_FILE = "zarplata_voditelya_auto_backup.json";
@@ -41,6 +49,8 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
+    private SpeechRecognizer speechRecognizer;
+    private boolean startVoiceAfterPermission = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,7 +72,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setAllowFileAccess(true);
 
-        webView.addJavascriptInterface(new BackupBridge(), "AndroidData");
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidData");
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -86,7 +96,7 @@ public class MainActivity extends Activity {
         webView.loadUrl("file:///android_asset/index.html");
     }
 
-    public class BackupBridge {
+    public class AndroidBridge {
         @JavascriptInterface
         public String getState() {
             return getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_STATE, "");
@@ -117,6 +127,120 @@ public class MainActivity extends Activity {
         public String getBackupLocation() {
             return "Загрузки/" + BACKUP_FOLDER + "/" + BACKUP_FILE;
         }
+
+        @JavascriptInterface
+        public void startVoiceInput() {
+            runOnUiThread(() -> requestVoiceInput());
+        }
+
+        @JavascriptInterface
+        public boolean isVoiceAvailable() {
+            return SpeechRecognizer.isRecognitionAvailable(MainActivity.this);
+        }
+    }
+
+    private void requestVoiceInput() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            sendVoiceError("Распознавание речи недоступно на этом телефоне");
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            startVoiceAfterPermission = true;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, VOICE_PERMISSION_REQUEST);
+            return;
+        }
+        startVoiceRecognition();
+    }
+
+    private void startVoiceRecognition() {
+        if (speechRecognizer != null) {
+            try { speechRecognizer.destroy(); } catch (Exception ignored) {}
+        }
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) { sendVoiceState("listening"); }
+            @Override public void onBeginningOfSpeech() { sendVoiceState("speaking"); }
+            @Override public void onRmsChanged(float rmsdB) {}
+            @Override public void onBufferReceived(byte[] buffer) {}
+            @Override public void onEndOfSpeech() { sendVoiceState("processing"); }
+
+            @Override
+            public void onError(int error) {
+                String message;
+                switch (error) {
+                    case SpeechRecognizer.ERROR_NO_MATCH:
+                        message = "Не удалось разобрать фразу";
+                        break;
+                    case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                        message = "Речь не услышана";
+                        break;
+                    case SpeechRecognizer.ERROR_NETWORK:
+                    case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                        message = "Ошибка сети при распознавании";
+                        break;
+                    case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                        message = "Микрофон занят, попробуйте ещё раз";
+                        break;
+                    default:
+                        message = "Ошибка голосового ввода";
+                }
+                sendVoiceError(message);
+            }
+
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> list = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (list != null && !list.isEmpty()) {
+                    sendVoiceResult(list.get(0));
+                } else {
+                    sendVoiceError("Не удалось разобрать фразу");
+                }
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {
+                ArrayList<String> list = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (list != null && !list.isEmpty()) sendVoicePartial(list.get(0));
+            }
+
+            @Override public void onEvent(int eventType, Bundle params) {}
+        });
+
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU");
+        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Назовите параметры смены");
+
+        sendVoiceState("starting");
+        speechRecognizer.startListening(intent);
+    }
+
+    private void sendVoiceState(String state) {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onVoiceState && window.onVoiceState(" + JSONObject.quote(state) + ");", null));
+    }
+
+    private void sendVoicePartial(String text) {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onVoicePartial && window.onVoicePartial(" + JSONObject.quote(text) + ");", null));
+    }
+
+    private void sendVoiceResult(String text) {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onVoiceResult && window.onVoiceResult(" + JSONObject.quote(text) + ");", null));
+    }
+
+    private void sendVoiceError(String text) {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onVoiceError && window.onVoiceError(" + JSONObject.quote(text) + ");", null));
     }
 
     private void writeExternalBackup(String json) throws Exception {
@@ -212,6 +336,19 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == VOICE_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (startVoiceAfterPermission) startVoiceRecognition();
+            } else {
+                sendVoiceError("Разрешите доступ к микрофону для голосового ввода");
+            }
+            startVoiceAfterPermission = false;
+        }
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == FILE_CHOOSER_REQUEST && filePathCallback != null) {
@@ -219,6 +356,15 @@ public class MainActivity extends Activity {
             filePathCallback.onReceiveValue(results);
             filePathCallback = null;
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (speechRecognizer != null) {
+            try { speechRecognizer.destroy(); } catch (Exception ignored) {}
+            speechRecognizer = null;
+        }
+        super.onDestroy();
     }
 
     @Override
