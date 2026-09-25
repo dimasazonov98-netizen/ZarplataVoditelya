@@ -10,7 +10,7 @@ android {
         applicationId 'com.dmitry.zarplata'
         minSdk 24
         targetSdk 34
-        versionCode 4
-        versionName '1.2.1 Luxe'
+        versionCode 5
+        versionName '1.2.2 Luxe'
     }
 }
