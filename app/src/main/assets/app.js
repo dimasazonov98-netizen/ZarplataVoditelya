@@ -267,10 +267,6 @@ function startVoiceEntry(){
     return;
   }
   try{
-    if(typeof AndroidData.isVoiceAvailable==='function' && !AndroidData.isVoiceAvailable()){
-      showVoiceToast('Голосовой ввод','На телефоне не найден системный сервис распознавания речи.');
-      return;
-    }
     setVoiceActive(true);
     showVoiceToast('Говорите…','Например: «до трёх тонн, пробег 240, без грузчика, второй рейс».',0);
     AndroidData.startVoiceInput();
