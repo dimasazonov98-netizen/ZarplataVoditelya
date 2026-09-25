@@ -5,6 +5,42 @@ const KEY_RATES='driver_salary_rates_v2_3';
 const OLD_RATES='driver_salary_rates_v1';
 const defaultRates={"2-3":5200,"3-4":5500,"4-5":5800,noLoader:1500,balloon:200,rack:150,over180:{"2-3":1500,"3-4":1700,"4-5":1700},over400:{"2-3":2200,"3-4":2500,"4-5":2500},secondTrip:4000};
 const $=id=>document.getElementById(id);
+const nativeAvailable=()=>typeof window.AndroidData!=='undefined';
+function importBackupState(raw){
+  try{
+    if(!raw) return false;
+    const d=JSON.parse(raw);
+    if(Array.isArray(d.trips)) localStorage.setItem(KEY_TRIPS,JSON.stringify(d.trips));
+    if(d.rates) localStorage.setItem(KEY_RATES,JSON.stringify(d.rates));
+    return Array.isArray(d.trips) || !!d.rates;
+  }catch(e){ return false; }
+}
+function restorePersistentData(){
+  const hasTrips=!!localStorage.getItem(KEY_TRIPS);
+  const hasRates=!!localStorage.getItem(KEY_RATES);
+  if(hasTrips && hasRates) return;
+  if(!nativeAvailable()) return;
+  let restored=false;
+  try{ restored=importBackupState(AndroidData.getState()); }catch(e){}
+  if(!restored){
+    try{ restored=importBackupState(AndroidData.getExternalBackup()); }catch(e){}
+  }
+}
+restorePersistentData();
+
+function persistNativeBackup(){
+  if(!nativeAvailable()) return;
+  try{
+    const state={
+      version:4,
+      savedAt:new Date().toISOString(),
+      rates:JSON.parse(localStorage.getItem(KEY_RATES)||'{}'),
+      trips:JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]')
+    };
+    AndroidData.saveState(JSON.stringify(state));
+  }catch(e){}
+}
+
 
 if(!localStorage.getItem(KEY_TRIPS) && localStorage.getItem(OLD_KEY)) localStorage.setItem(KEY_TRIPS,localStorage.getItem(OLD_KEY));
 if(!localStorage.getItem(KEY_RATES)){
@@ -27,9 +63,9 @@ if(!localStorage.getItem(KEY_RATES)){
 }
 
 const loadTrips=()=>JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]');
-const saveTrips=a=>localStorage.setItem(KEY_TRIPS,JSON.stringify(a));
+const saveTrips=a=>{localStorage.setItem(KEY_TRIPS,JSON.stringify(a));persistNativeBackup();};
 const loadRates=()=>({...defaultRates,...JSON.parse(localStorage.getItem(KEY_RATES)||'{}')});
-const saveRatesObj=r=>localStorage.setItem(KEY_RATES,JSON.stringify(r));
+const saveRatesObj=r=>{localStorage.setItem(KEY_RATES,JSON.stringify(r));persistNativeBackup();};
 
 function todayLocal(){const d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString().slice(0,10)}
 $('date').value=todayLocal();
@@ -169,4 +205,4 @@ $('restoreBtn').onclick=()=>$('restoreFile').click();
 $('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
 
 window.addEventListener('resize',()=>{if($('home').classList.contains('active'))renderHome();if($('stats').classList.contains('active'))renderStats()});
-populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();
+populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();setTimeout(persistNativeBackup,500);
