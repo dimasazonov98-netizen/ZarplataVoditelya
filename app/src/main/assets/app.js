@@ -165,6 +165,7 @@ function showPage(id){
  if(id==='history') {fillMonths();renderHistory();}
  if(id==='calendarPage') renderCalendar();
  if(id==='stats') renderStats();
+ if(id==='settings') populateRates();
  trackUsage('screen_view',{screen:id});
  window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -425,10 +426,93 @@ document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{
 $('statsPrev').onclick=()=>{statsOffsetDays+=statsDays;trackUsage('stats_period_navigated',{direction:'previous',days:statsDays});renderStats()};
 $('statsNext').onclick=()=>{statsOffsetDays=Math.max(0,statsOffsetDays-statsDays);trackUsage('stats_period_navigated',{direction:'next',days:statsDays});renderStats()};
 
-function populateRates(){
- const r=loadRates();$('rate23').value=r['2-3'];$('rate34').value=r['3-4'];$('rate45').value=r['4-5'];$('rateNoLoader').value=r.noLoader;$('rateBalloon').value=r.balloon;$('rateRack').value=r.rack;$('rate180_23').value=r.over180['2-3'];$('rate400_23').value=r.over400['2-3'];$('rate180_34').value=r.over180['3-4'];$('rate400_34').value=r.over400['3-4'];$('rate180_45').value=r.over180['4-5'];$('rate400_45').value=r.over400['4-5'];$('rateSecond').value=r.secondTrip
+let rateEditorConfig=TariffEngine.clone(loadRates());
+function newTariffId(prefix){
+ return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7)
 }
-$('saveRates').onclick=()=>{saveRatesObj({"2-3":val('rate23'),"3-4":val('rate34'),"4-5":val('rate45'),noLoader:val('rateNoLoader'),balloon:val('rateBalloon'),rack:val('rateRack'),over180:{"2-3":val('rate180_23'),"3-4":val('rate180_34'),"4-5":val('rate180_45')},over400:{"2-3":val('rate400_23'),"3-4":val('rate400_34'),"4-5":val('rate400_45')},secondTrip:val('rateSecond')});trackUsage('rates_saved');calculate();alert('Тарифы сохранены')};
+function renderRateEditor(){
+ const baseBox=$('baseRatesList'),extraBox=$('extraRatesList');
+ if(baseBox){
+   baseBox.innerHTML=rateEditorConfig.bases.length?rateEditorConfig.bases.map((b,i)=>`
+     <div class="tariff-editor">
+       <div class="tariff-editor-top">
+         <div><label>Название</label><input data-base-name="${i}" maxlength="80" value="${esc(b.name)}" placeholder="Например, до 3 т"></div>
+         <div><label>Сумма, ₽</label><input data-base-rate="${i}" type="number" min="0" step="1" value="${Number(b.rate)||0}"></div>
+         <button class="tariff-remove" data-remove-base="${i}" aria-label="Удалить">×</button>
+       </div>
+     </div>`).join(''):'<div class="empty-editor">Базовых тарифов нет. Смена будет считаться только по доплатам.</div>';
+ }
+ if(extraBox){
+   const baseOptions='<option value="">Любой базовый тариф</option>'+rateEditorConfig.bases.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+   extraBox.innerHTML=rateEditorConfig.extras.length?rateEditorConfig.extras.map((e,i)=>`
+     <div class="tariff-editor">
+       <div class="tariff-editor-top">
+         <div><label>Название</label><input data-extra-name="${i}" maxlength="80" value="${esc(e.name)}" placeholder="Например, Без грузчика"></div>
+         <div><label>Сумма, ₽</label><input data-extra-rate="${i}" type="number" step="1" value="${Number(e.rate)||0}"></div>
+         <button class="tariff-remove" data-remove-extra="${i}" aria-label="Удалить">×</button>
+       </div>
+       <div class="tariff-editor-grid">
+         <div><label>Как считать</label>
+           <select data-extra-kind="${i}">
+             <option value="toggle" ${e.kind==='toggle'?'selected':''}>Флажок · разовая доплата</option>
+             <option value="quantity" ${e.kind==='quantity'?'selected':''}>Количество × тариф</option>
+             <option value="mileage" ${e.kind==='mileage'?'selected':''}>Автоматически по пробегу</option>
+           </select>
+         </div>
+         ${e.kind==='mileage'?`<div><label>От какого пробега, км</label><input data-extra-threshold="${i}" type="number" min="0" step="1" value="${Number(e.threshold)||0}"></div>
+         <div><label>Для какого тарифа</label><select data-extra-base="${i}">${baseOptions}</select></div>`:''}
+       </div>
+       <div class="tariff-kind-hint">${e.kind==='toggle'?'В смене появится переключатель.':e.kind==='quantity'?'В смене появится поле количества.':'Доплата включится сама при достижении пробега.'}</div>
+     </div>`).join(''):'<div class="empty-editor">Доплат пока нет. Добавьте только те, которыми пользуетесь.</div>';
+   rateEditorConfig.extras.forEach((e,i)=>{
+     if(e.kind==='mileage'){
+       const el=extraBox.querySelector(`[data-extra-base="${i}"]`);
+       if(el)el.value=e.baseId||''
+     }
+   })
+ }
+
+ document.querySelectorAll('[data-base-name]').forEach(el=>el.oninput=()=>{const i=+el.dataset.baseName;if(rateEditorConfig.bases[i])rateEditorConfig.bases[i].name=el.value});
+ document.querySelectorAll('[data-base-rate]').forEach(el=>el.oninput=()=>{const i=+el.dataset.baseRate;if(rateEditorConfig.bases[i])rateEditorConfig.bases[i].rate=Math.max(0,Number(el.value)||0)});
+ document.querySelectorAll('[data-remove-base]').forEach(el=>el.onclick=()=>{
+   const i=+el.dataset.removeBase,removed=rateEditorConfig.bases[i];if(!removed)return;
+   rateEditorConfig.bases.splice(i,1);
+   rateEditorConfig.extras.forEach(x=>{if(x.baseId===removed.id)x.baseId=''});
+   renderRateEditor()
+ });
+ document.querySelectorAll('[data-extra-name]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraName;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].name=el.value});
+ document.querySelectorAll('[data-extra-rate]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraRate;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].rate=Number(el.value)||0});
+ document.querySelectorAll('[data-extra-kind]').forEach(el=>el.onchange=()=>{
+   const i=+el.dataset.extraKind,e=rateEditorConfig.extras[i];if(!e)return;
+   e.kind=el.value;
+   if(e.kind==='mileage'){e.threshold=Number(e.threshold)||180;e.baseId=e.baseId||''}else{delete e.threshold;delete e.baseId}
+   renderRateEditor()
+ });
+ document.querySelectorAll('[data-extra-threshold]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraThreshold;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].threshold=Math.max(0,Number(el.value)||0)});
+ document.querySelectorAll('[data-extra-base]').forEach(el=>el.onchange=()=>{const i=+el.dataset.extraBase;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].baseId=el.value});
+ document.querySelectorAll('[data-remove-extra]').forEach(el=>el.onclick=()=>{const i=+el.dataset.removeExtra;if(rateEditorConfig.extras[i])rateEditorConfig.extras.splice(i,1);renderRateEditor()});
+}
+function populateRates(){
+ rateEditorConfig=TariffEngine.clone(loadRates());
+ renderRateEditor()
+}
+$('addBaseRate').onclick=()=>{
+ rateEditorConfig.bases.push({id:newTariffId('base'),name:'Новый тариф',rate:0});
+ renderRateEditor()
+};
+$('addExtraRate').onclick=()=>{
+ rateEditorConfig.extras.push({id:newTariffId('extra'),name:'Новая доплата',kind:'toggle',rate:0});
+ renderRateEditor()
+};
+$('saveRates').onclick=()=>{
+ rateEditorConfig=TariffEngine.normalizeConfig(rateEditorConfig);
+ saveRatesObj(rateEditorConfig);
+ renderShiftTariffs();
+ calculate();
+ populateRates();
+ trackUsage('rates_saved',{base_count:rateEditorConfig.bases.length,extra_count:rateEditorConfig.extras.length});
+ alert('Тарифы сохранены')
+};
 
 function browserSaveText(filename,mime,content){
  const blob=new Blob([content],{type:mime}),a=document.createElement('a');
