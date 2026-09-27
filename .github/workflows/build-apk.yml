@@ -5,6 +5,10 @@ on:
   push:
     branches: [ "main" ]
 
+concurrency:
+  group: zarplata-apk-main
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,6 +28,25 @@ jobs:
         run: bash scripts/prepare_luxe_assets.sh
       - name: Check JavaScript syntax
         run: node --check app/src/main/assets/app.js
+      - name: Restore stable signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: zarplata-android-signing-v1
+      - name: Create signing key if missing
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Zarplata Voditelya,O=Personal Android App,C=NL"
+          fi
       - name: Android lint
         run: gradle :app:lintDebug --stacktrace
       - name: Build debug APK
@@ -31,6 +54,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZarplataVoditelya-LUXE-v1.4.0-STABLE-APK
+          name: ZarplataVoditelya-v1.4.0-STABLE-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
