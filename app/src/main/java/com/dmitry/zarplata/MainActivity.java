@@ -367,8 +367,10 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentResolver resolver = getContentResolver();
             Uri collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
-            String selection = MediaStore.Downloads.DISPLAY_NAME + "=?";
-            String[] args = new String[]{BACKUP_FILE};
+            String relativePath = Environment.DIRECTORY_DOWNLOADS + "/" + BACKUP_FOLDER + "/";
+            String selection = MediaStore.Downloads.DISPLAY_NAME + "=? AND " +
+                    MediaStore.Downloads.RELATIVE_PATH + "=?";
+            String[] args = new String[]{BACKUP_FILE, relativePath};
 
             try (Cursor c = resolver.query(
                     collection,
