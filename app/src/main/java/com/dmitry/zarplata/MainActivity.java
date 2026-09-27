@@ -181,6 +181,23 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String sendAnalyticsTest() {
+            if (!analyticsConfigured()) return "not-configured";
+            try {
+                ensureAppMetricaInitialized();
+                JSONObject payload = new JSONObject();
+                payload.put("app_name", "TRUK WALLET");
+                payload.put("platform", "android");
+                payload.put("test", true);
+                AppMetrica.reportEvent("analytics_test", payload.toString());
+                AppMetrica.sendEventsBuffer();
+                return "sent:" + AppMetrica.getLibraryVersion();
+            } catch (Exception e) {
+                return "error";
+            }
+        }
+
+        @JavascriptInterface
         public String trackEvent(String eventName, String propertiesJson) {
             if (!analyticsConfigured()) return "not-configured";
             if (eventName == null || !eventName.matches("[A-Za-z0-9_.-]{1,80}")) return "invalid-event";
@@ -192,7 +209,8 @@ public class MainActivity extends Activity {
                 } else {
                     AppMetrica.reportEvent(eventName, payload);
                 }
-                return "queued";
+                AppMetrica.sendEventsBuffer();
+                return "sent";
             } catch (Exception e) {
                 return "error";
             }
@@ -332,6 +350,7 @@ public class MainActivity extends Activity {
         if (APPMETRICA_API_KEY == null || APPMETRICA_API_KEY.trim().isEmpty()) return;
 
         AppMetricaConfig config = AppMetricaConfig.newConfigBuilder(APPMETRICA_API_KEY)
+                .withLogs()
                 .withAdvIdentifiersTracking(false)
                 .withLocationTracking(false)
                 .withCrashReporting(false)
@@ -339,6 +358,7 @@ public class MainActivity extends Activity {
                 .build();
 
         AppMetrica.activate(getApplicationContext(), config);
+        AppMetrica.enableActivityAutoTracking(getApplication());
         appMetricaActivated = true;
     }
 
