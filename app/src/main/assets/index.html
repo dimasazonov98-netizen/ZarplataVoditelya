@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#07111f">
-<title>Зарплата водителя 2.0 Luxe</title>
+<meta name="theme-color" content="#f4f8f5">
+<title>Зарплата водителя 2.0</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +14,10 @@
 
 <section id="home" class="page active">
   <div class="topbar">
-    <div class="brand"><strong>Зарплата <span class="brand-accent">2.0</span></strong><small>Для тех, кто за рулём · v1.4.1</small></div>
+    <div class="brand-wrap">
+      <div class="app-badge">🚚</div>
+      <div class="brand"><strong>Зарплата водителя <span class="brand-accent">2.0</span></strong><small>Хорошей дороги! · v1.5.0</small></div>
+    </div>
     <button class="iconbtn" onclick="showPage('settings')">⚙</button>
   </div>
 
@@ -26,6 +29,14 @@
       <div class="stat"><span>Смен</span><b id="monthCount">0</b></div>
       <div class="stat"><span>Средняя</span><b id="avgShift">0 ₽</b></div>
     </div>
+  </div>
+
+  <div class="section-title"><h2>Быстрые действия</h2></div>
+  <div class="home-actions">
+    <button class="action-tile action-primary" onclick="showPage('add')"><span>＋</span><b>Добавить смену</b></button>
+    <button class="action-tile" onclick="startVoiceEntry()"><span>🎙</span><b>Заполнить голосом</b></button>
+    <button class="action-tile" onclick="showPage('calendarPage')"><span>▦</span><b>Календарь</b></button>
+    <button class="action-tile" onclick="showPage('history')"><span>☷</span><b>История</b></button>
   </div>
 
   <div class="section-title"><h2>Доход по дням</h2><button onclick="showPage('stats')">Подробнее</button></div>
@@ -87,10 +98,8 @@
 </section>
 
 <section id="add" class="page">
-  <div class="topbar"><div class="brand">Новая смена<small>Расчёт происходит автоматически</small></div></div>
+  <div class="topbar"><div class="brand">Добавить смену<small>Расчёт происходит автоматически</small></div></div>
   <div class="card">
-    <button id="voiceFormBtn" class="voice-inline" type="button" onclick="location.href='driverapp://voice'">🎙 Заполнить смену голосом</button>
-    <div class="voice-hint">Например: «до трёх тонн, пробег 240, без грузчика, второй рейс, два баллона»</div>
     <div class="grid2">
       <div><label>Дата</label><input id="date" type="date"></div>
       <div><label>Вес</label>
@@ -131,6 +140,8 @@
       <div class="breakdown" id="breakdown"></div>
     </div>
     <button id="saveTrip" class="primary">Сохранить смену</button>
+    <button id="voiceFormBtn" class="voice-inline" type="button" onclick="location.href='driverapp://voice'">🎙 Заполнить голосом</button>
+    <div class="voice-hint">Например: «до трёх тонн, пробег 240, без грузчика, второй рейс, два баллона»</div>
   </div>
 </section>
 
@@ -155,7 +166,7 @@
     <button id="saveRates" class="primary">Сохранить тарифы</button>
   </div>
   <div class="card">
-    <div class="muted" style="margin-bottom:12px;line-height:1.55"><b style="color:#ffe09b">Автокопия включена · защита данных v1.4.</b><br>После каждой смены данные дополнительно сохраняются в память Android и в папку «Загрузки/ZarplataVoditelya». При удалении приложения файл автокопии остаётся на телефоне.</div>
+    <div class="muted" style="margin-bottom:12px;line-height:1.55"><b style="color:#0a9a50">Автокопия включена · защита данных v1.4.</b><br>После каждой смены данные дополнительно сохраняются в память Android и в папку «Загрузки/ZarplataVoditelya». При удалении приложения файл автокопии остаётся на телефоне.</div>
     <div class="grid2">
       <button id="backup" class="secondary">Скачать копию</button>
       <button id="restoreBtn" class="secondary">Восстановить</button>

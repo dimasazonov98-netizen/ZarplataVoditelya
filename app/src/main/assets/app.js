@@ -168,13 +168,13 @@ function drawChart(canvas,data,title){
  const ctx=canvas.getContext('2d');if(!ctx)return;
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  const pad={l:14,r:8,t:15,b:28},iw=Math.max(1,w-pad.l-pad.r),ih=Math.max(1,h-pad.t-pad.b),max=Math.max(...data.map(x=>Number(x.value)||0),1);
- ctx.strokeStyle='#24334c';ctx.lineWidth=1;
+ ctx.strokeStyle='#e1e8e4';ctx.lineWidth=1;
  for(let i=0;i<4;i++){const y=pad.t+ih*i/3;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke()}
  const bw=Math.max(2,iw/Math.max(data.length,1)*.58);
  data.forEach((x,i)=>{
    const cx=pad.l+iw*(i+.5)/Math.max(data.length,1),bh=Math.max(0,((Number(x.value)||0)/max)*ih),y=pad.t+ih-bh;
    if(bh>0){ctx.fillStyle='#22c55e';ctx.beginPath();roundRect(ctx,cx-bw/2,y,bw,bh,6);ctx.fill()}
-   ctx.fillStyle='#91a0b5';ctx.font='10px system-ui';ctx.textAlign='center';
+   ctx.fillStyle='#7a8880';ctx.font='10px system-ui';ctx.textAlign='center';
    ctx.fillText(new Date(x.date+'T12:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}),cx,h-8)
  })
 }
