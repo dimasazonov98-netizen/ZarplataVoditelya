@@ -337,7 +337,7 @@ function parseVoiceShift(raw){
     return {changed:false,cancel:true,save:false,summary:'Ввод отменён'}
   }
 
-  const saveRequested=/(?:^|\\s)(сохрани|сохранить|запиши|записать)(?:\\s|$|[,.])/.test(t);
+  const saveRequested=/(?:^|\s)(сохрани|сохранить|запиши|записать)(?:\s|$|[,.])/.test(t);
   const hasDetails=/(пробег|километр|тонн|грузчик|рейс|баллон|стойк|доплат|комментар|заметка)/.test(t);
 
   if(saveRequested&&!hasDetails&&$('add').classList.contains('active')){
@@ -353,18 +353,18 @@ function parseVoiceShift(raw){
   else if(t.includes('завтра')){$('date').value=shiftDate(1);changed=true}
   else if(t.includes('сегодня')){$('date').value=todayLocal();changed=true}
 
-  if(/(?:^|\\s)(?:4\\s*[- ]\\s*5|от\\s+четырех\\s+до\\s+пяти|четыре\\s+пять)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+  if(/(?:^|\s)(?:4\s*[- ]\s*5|от\s+четырех\s+до\s+пяти|четыре\s+пять)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
     $('weight').value='4-5';changed=true
-  }else if(/(?:^|\\s)(?:3\\s*[- ]\\s*4|от\\s+трех\\s+до\\s+четырех|три\\s+четыре)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+  }else if(/(?:^|\s)(?:3\s*[- ]\s*4|от\s+трех\s+до\s+четырех|три\s+четыре)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
     $('weight').value='3-4';changed=true
-  }else if(/(?:^|\\s)(?:до\\s*(?:3|трех)|до\\s+трех)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+  }else if(/(?:^|\s)(?:до\s*(?:3|трех)|до\s+трех)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
     $('weight').value='2-3';changed=true
   }
 
-  let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\\s+(.+?)(?=\\s+(?:без\\s+грузчика|с\\s+грузчиком|второй\\s+рейс|2(?:-?й)?\\s+рейс|баллон\\w*|стойк\\w*|доплат\\w*|комментар\\w*|заметка)|$)/);
+  let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\s+(.+?)(?=\s+(?:без\s+грузчика|с\s+грузчиком|второй\s+рейс|2(?:-?й)?\s+рейс|баллон\w*|стойк\w*|доплат\w*|комментар\w*|заметка)|$)/);
   let mileage=mm?spokenNumber(mm[1]):null;
   if(mileage===null){
-    mm=t.match(/(?:^|\\s)(\\d{2,4})\\s*(?:км|километр\\w*)(?:\\s|$|[,.])/);
+    mm=t.match(/(?:^|\s)(\d{2,4})\s*(?:км|километр\w*)(?:\s|$|[,.])/);
     mileage=mm?Number(mm[1]):null
   }
   if(mileage!==null&&mileage>=0){$('mileage').value=mileage;changed=true}
@@ -372,21 +372,21 @@ function parseVoiceShift(raw){
   if(t.includes('без грузчика')){$('noLoader').checked=true;changed=true}
   else if(t.includes('с грузчиком')){$('noLoader').checked=false;changed=true}
 
-  if(/(?:^|\\s)(?:второй|2(?:-?й)?|два)\\s+рейс(?:а)?(?:\\s|$|[,.])/.test(t)){$('secondTrip').checked=true;changed=true}
-  else if(/(?:^|\\s)один\\s+рейс(?:\\s|$|[,.])/.test(t)){$('secondTrip').checked=false;changed=true}
+  if(/(?:^|\s)(?:второй|2(?:-?й)?|два)\s+рейс(?:а)?(?:\s|$|[,.])/.test(t)){$('secondTrip').checked=true;changed=true}
+  else if(/(?:^|\s)один\s+рейс(?:\s|$|[,.])/.test(t)){$('secondTrip').checked=false;changed=true}
 
   const balloons=extractUnitCount(t,'баллон(?:а|ов|ы)?');
   if(balloons!==null){$('balloons').value=balloons;changed=true}
   const racks=extractUnitCount(t,'(?:стойк(?:а|и|у|ой)?|стоек)');
   if(racks!==null){$('racks').value=racks;changed=true}
 
-  const extraMatch=t.match(/(?:доплата|доплату|доплатить)\\s+(.+?)(?=\\s+(?:комментар|заметка|баллон|стойк|рейс|без\\s+грузчика|с\\s+грузчиком)|$)/);
+  const extraMatch=t.match(/(?:доплата|доплату|доплатить)\s+(.+?)(?=\s+(?:комментар|заметка|баллон|стойк|рейс|без\s+грузчика|с\s+грузчиком)|$)/);
   if(extraMatch){
     const extra=spokenNumber(extraMatch[1]);
     if(extra!==null){$('manualExtra').value=extra;changed=true}
   }
 
-  const commentMatch=String(raw).match(/(?:комментарий|заметка)\\s+(.+)$/i);
+  const commentMatch=String(raw).match(/(?:комментарий|заметка)\s+(.+)$/i);
   if(commentMatch){$('comment').value=commentMatch[1].trim();changed=true}
 
   const total=calculate();
