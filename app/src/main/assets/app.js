@@ -172,31 +172,96 @@ window.showPage=showPage;
 document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 $('fab').onclick=()=>showPage('add');
 
-function calculate(){
- const r=loadRates(),w=$('weight').value,m=val('mileage'),b=val('balloons'),s=val('racks'),manual=val('manualExtra');
- let total=Number(r[w])||0; const parts=[`База ${w} т: ${RUB(r[w])}`];
- if($('noLoader').checked){total+=r.noLoader;parts.push(`Без грузчика: +${RUB(r.noLoader)}`)}
- if(b){const x=b*r.balloon;total+=x;parts.push(`Баллоны ×${b}: +${RUB(x)}`)}
- if(s){const x=s*r.rack;total+=x;parts.push(`Стойки ×${s}: +${RUB(x)}`)}
- if(m>=400 && r.over400?.[w]){const x=Number(r.over400[w])||0;total+=x;parts.push(`Пробег 400+: +${RUB(x)}`)}
- else if(m>=180 && r.over180?.[w]){const x=Number(r.over180[w])||0;total+=x;parts.push(`Пробег 180+: +${RUB(x)}`)}
- if($('secondTrip').checked){total+=r.secondTrip;parts.push(`Второй рейс: +${RUB(r.secondTrip)}`)}
- if(manual){total+=manual;parts.push(`Ручная доплата: ${manual>=0?'+':''}${RUB(manual)}`)}
- $('calcTotal').textContent=RUB(total);$('breakdown').innerHTML=parts.join('<br>');return total
+function extraInputId(extra){
+ if(extra.id==='noLoader')return 'noLoader';
+ if(extra.id==='secondTrip')return 'secondTrip';
+ if(extra.id==='balloon')return 'balloons';
+ if(extra.id==='rack')return 'racks';
+ return 'extra_'+extra.id
 }
-['weight','mileage','noLoader','secondTrip','balloons','racks','manualExtra'].forEach(id=>{
- $(id).addEventListener('input',calculate);$(id).addEventListener('change',calculate)
+function renderShiftTariffs(){
+ const cfg=loadRates(),select=$('weight'),box=$('dynamicExtras');
+ const current=select?select.value:'';
+ if(select){
+   if(cfg.bases.length){
+     select.innerHTML=cfg.bases.map(b=>`<option value="${esc(b.id)}">${esc(b.name)} · ${RUB(b.rate)}</option>`).join('');
+     select.value=cfg.bases.some(b=>b.id===current)?current:cfg.bases[0].id;
+   }else{
+     select.innerHTML='<option value="">Без базового тарифа</option>';
+     select.value='';
+   }
+ }
+ if(!box)return;
+ const controls=cfg.extras.filter(e=>e.kind!=='mileage').map(e=>{
+   const id=extraInputId(e);
+   if(e.kind==='quantity'){
+     return `<div class="dynamic-extra"><div class="dynamic-extra-qty"><div><b>${esc(e.name)}</b><small>${RUB(e.rate)} за единицу</small></div><div><label>Количество</label><input id="${esc(id)}" data-extra-id="${esc(e.id)}" type="number" min="0" step="1" value="0" inputmode="numeric"></div></div></div>`;
+   }
+   return `<div class="dynamic-extra"><div class="dynamic-extra-row"><div><b>${esc(e.name)}</b><small>Доплата ${e.rate>=0?'+':''}${RUB(e.rate)}</small></div><label class="switch"><input id="${esc(id)}" data-extra-id="${esc(e.id)}" type="checkbox"><span class="slider"></span></label></div></div>`;
+ }).join('');
+ const mileage=cfg.extras.filter(e=>e.kind==='mileage');
+ const mileageHtml=mileage.length?`<div class="auto-extra"><b>Автоматически по пробегу</b><br>${mileage.map(e=>{
+   const base=e.baseId?(cfg.bases.find(b=>b.id===e.baseId)?.name||'выбранный тариф'):'любой тариф';
+   return `${esc(e.name)}: от ${Math.round(e.threshold)} км · ${base} · ${e.rate>=0?'+':''}${RUB(e.rate)}`;
+ }).join('<br>')}</div>`:'';
+ box.innerHTML=controls+ mileageHtml;
+ box.querySelectorAll('input[data-extra-id]').forEach(el=>{
+   el.addEventListener('input',calculate);el.addEventListener('change',calculate)
+ });
+}
+function readShiftValues(){
+ const cfg=loadRates(),values={};
+ cfg.extras.filter(e=>e.kind!=='mileage').forEach(e=>{
+   const el=$(extraInputId(e));
+   if(!el)return;
+   values[e.id]=e.kind==='toggle'?!!el.checked:(Number(el.value)||0)
+ });
+ return values
+}
+function getShiftCalculation(){
+ return TariffEngine.compute(loadRates(),{
+   baseId:$('weight')?$('weight').value:'',
+   mileage:val('mileage'),
+   values:readShiftValues(),
+   manualExtra:val('manualExtra')
+ })
+}
+function calculate(){
+ const result=getShiftCalculation();
+ $('calcTotal').textContent=RUB(result.total);
+ $('breakdown').innerHTML=result.parts.length?result.parts.map(p=>{
+   const sign=p.kind==='base'?'':(p.amount>=0?'+':'');
+   return `${esc(p.name)}: ${sign}${RUB(p.amount)}`
+ }).join('<br>'):'Тарифы не выбраны';
+ return result.total
+}
+['weight','mileage','manualExtra'].forEach(id=>{
+ const el=$(id);if(el){el.addEventListener('input',calculate);el.addEventListener('change',calculate)}
 });
 
 function resetForm(){
- $('date').value=todayLocal();$('weight').value='2-3';$('mileage').value='';$('noLoader').checked=false;$('secondTrip').checked=false;
- $('balloons').value=0;$('racks').value=0;$('manualExtra').value=0;$('comment').value='';calculate()
+ $('date').value=todayLocal();
+ $('mileage').value='';
+ $('manualExtra').value=0;
+ $('comment').value='';
+ renderShiftTariffs();
+ const cfg=loadRates();if($('weight'))$('weight').value=cfg.bases[0]?.id||'';
+ calculate()
 }
 $('saveTrip').onclick=()=>{
- const trip={id:Date.now(),date:$('date').value||todayLocal(),weight:$('weight').value,mileage:val('mileage'),noLoader:$('noLoader').checked,
- secondTrip:$('secondTrip').checked,balloons:val('balloons'),racks:val('racks'),manualExtra:val('manualExtra'),
- comment:$('comment').value.trim(),total:calculate(),ratesSnapshot:loadRates()};
- const a=loadTrips();a.push(trip);saveTrips(a);trackUsage('shift_saved',{method:'manual_or_voice'});resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
+ const result=getShiftCalculation(),values=readShiftValues(),base=result.base;
+ const trip={
+   id:Date.now(),date:$('date').value||todayLocal(),
+   baseId:base?.id||'',baseLabel:base?.name||'Без базового тарифа',weight:base?.id||'',
+   mileage:val('mileage'),extras:values,extraSummary:result.applied,
+   noLoader:!!values.noLoader,secondTrip:!!values.secondTrip,
+   balloons:Number(values.balloon)||0,racks:Number(values.rack)||0,
+   manualExtra:val('manualExtra'),comment:$('comment').value.trim(),
+   total:result.total,ratesSnapshot:loadRates()
+ };
+ const trips=loadTrips();trips.push(trip);saveTrips(trips);
+ trackUsage('shift_saved',{method:'manual_or_voice',has_extras:result.applied.length>0});
+ resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
  setTimeout(()=>alert('Смена сохранена'),100)
 };
 
