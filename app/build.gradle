@@ -19,8 +19,8 @@ android {
         applicationId 'com.dmitry.zarplata'
         minSdk 24
         targetSdk 34
-        versionCode 19
-        versionName '1.6.0 Analytics Ready'
+        versionCode 20
+        versionName '1.6.1 AppMetrica'
     }
 
     buildTypes {
@@ -28,4 +28,9 @@ android {
             signingConfig signingConfigs.stableDebug
         }
     }
+}
+
+
+dependencies {
+    implementation 'io.appmetrica.analytics:analytics:8.5.1'
 }
