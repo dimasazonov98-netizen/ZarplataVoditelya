@@ -22,8 +22,8 @@ android {
         minSdk 24
         targetSdk 34
         buildConfigField "String", "APPMETRICA_API_KEY", '"'+appMetricaKey.replace('\\','\\\\').replace('"','\\\"')+'"'
-        versionCode 22
-        versionName '1.6.3 AppMetrica Active'
+        versionCode 23
+        versionName '1.6.4 AppMetrica Flush'
     }
 
     buildTypes {
