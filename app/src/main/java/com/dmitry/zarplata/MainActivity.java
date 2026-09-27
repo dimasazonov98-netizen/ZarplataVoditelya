@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
     private static final String BACKUP_FILE = "zarplata_voditelya_auto_backup.json";
     private static final String BACKUP_FOLDER = "ZarplataVoditelya";
     // Вставьте сюда API key приложения из AppMetrica: Настройки → Основное.
-    private static final String APPMETRICA_API_KEY = "";
+    private static final String APPMETRICA_API_KEY = BuildConfig.APPMETRICA_API_KEY;
     private static boolean appMetricaActivated = false;
 
     private WebView webView;
