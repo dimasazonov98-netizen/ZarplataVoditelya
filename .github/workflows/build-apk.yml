@@ -54,6 +54,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TRUK-WALLET-v1.5.4-CHART-FIX-APK
+          name: TRUK-WALLET-v1.5.5-STATS-SCROLL-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
