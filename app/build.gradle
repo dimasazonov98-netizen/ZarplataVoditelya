@@ -1,3 +1,5 @@
+def appMetricaKey = System.getenv("APPMETRICA_API_KEY") ?: ""
+
 plugins {
     id 'com.android.application'
 }
@@ -19,14 +21,19 @@ android {
         applicationId 'com.dmitry.zarplata'
         minSdk 24
         targetSdk 34
-        versionCode 20
-        versionName '1.6.1 AppMetrica'
+        buildConfigField "String", "APPMETRICA_API_KEY", '"'+appMetricaKey.replace('\\','\\\\').replace('"','\\\"')+'"'
+        versionCode 21
+        versionName '1.6.2 AppMetrica Secure'
     }
 
     buildTypes {
         debug {
             signingConfig signingConfigs.stableDebug
         }
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 }
 
