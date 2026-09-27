@@ -14,7 +14,7 @@
   <div class="topbar">
     <div class="brand-wrap">
       <div class="app-badge"><img src="app-icon.webp" alt=""></div>
-      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.5.5</small></div>
+      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.6.0</small></div>
     </div>
     <button class="iconbtn" onclick="showPage('settings')">⚙</button>
   </div>
@@ -174,6 +174,18 @@
     <button id="saveRates" class="primary">Сохранить тарифы</button>
   </div>
   <div class="card">
+    <div class="analytics-head">
+      <div>
+        <div class="analytics-title">Анонимная аналитика</div>
+        <div class="muted">Помогает понять, как часто пользуются приложением и какие функции важнее.</div>
+      </div>
+      <label class="switch"><input id="analyticsOptIn" type="checkbox"><span class="slider"></span></label>
+    </div>
+    <div class="analytics-note">Не отправляем суммы зарплаты, пробег, комментарии, адреса и содержимое смен. Только события использования функций.</div>
+    <div class="analytics-status" id="analyticsStatus">Статус: не подключено</div>
+  </div>
+
+  <div class="card">
     <div class="muted" style="margin-bottom:12px;line-height:1.55"><b style="color:#0a9a50">Автокопия включена · защита данных v1.4.</b><br>После каждой смены данные дополнительно сохраняются в память Android и в папку «Загрузки/ZarplataVoditelya». При удалении приложения файл автокопии остаётся на телефоне.</div>
     <div class="grid2">
       <button id="backup" class="secondary">Скачать копию</button>
@@ -188,6 +200,16 @@
 <button class="voice-fab" id="voiceFab" aria-label="Голосовой ввод" onclick="location.href='driverapp://voice'">🎙</button>
 <button class="fab" id="fab">＋</button>
 <div class="voice-toast" id="voiceToast"><div class="voice-toast-title" id="voiceToastTitle">Голосовой ввод</div><div class="voice-toast-text" id="voiceToastText">Нажмите микрофон и назовите параметры смены</div></div>
+
+<div class="analytics-consent" id="analyticsConsentModal">
+  <div class="analytics-consent-card">
+    <div class="analytics-consent-icon">📊</div>
+    <h3>Помочь улучшать TRUK WALLET?</h3>
+    <p>Приложение может анонимно отправлять сведения о том, какие разделы и функции используются. Суммы зарплаты, пробег, комментарии и данные смен не отправляются.</p>
+    <button id="analyticsAllow" class="primary">Разрешить</button>
+    <button id="analyticsDecline" class="secondary">Не сейчас</button>
+  </div>
+</div>
 
 <nav class="nav">
   <div class="nav-in">
