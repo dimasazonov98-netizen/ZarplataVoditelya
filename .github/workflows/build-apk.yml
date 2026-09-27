@@ -63,6 +63,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TRUK-WALLET-v1.6.3-APPMETRICA-ACTIVE-APK
+          name: TRUK-WALLET-v1.6.4-APPMETRICA-FLUSH-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
