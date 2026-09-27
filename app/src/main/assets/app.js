@@ -8,6 +8,41 @@ const defaultRates={"2-3":5200,"3-4":5500,"4-5":5800,noLoader:1500,balloon:200,r
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nativeAvailable=()=>typeof window.AndroidData!=='undefined';
+const ANALYTICS_CONSENT_KEY='truk_wallet_analytics_consent_v1';
+function analyticsAllowed(){return localStorage.getItem(ANALYTICS_CONSENT_KEY)==='yes'}
+function analyticsConfigured(){
+  if(!nativeAvailable()||typeof AndroidData.analyticsConfigured!=='function')return false;
+  try{return !!AndroidData.analyticsConfigured()}catch(e){return false}
+}
+function trackUsage(eventName,properties={}){
+  if(!analyticsAllowed()||!nativeAvailable()||typeof AndroidData.trackEvent!=='function')return;
+  try{AndroidData.trackEvent(eventName,JSON.stringify(properties||{}))}catch(e){}
+}
+function refreshAnalyticsUi(){
+  const opt=$('analyticsOptIn'),status=$('analyticsStatus');
+  const allowed=analyticsAllowed(),configured=analyticsConfigured();
+  if(opt)opt.checked=allowed;
+  if(status){
+    status.textContent=!allowed?'Статус: выключена':configured?'Статус: активна':'Статус: готова, требуется подключение сервиса аналитики';
+  }
+}
+function setAnalyticsConsent(enabled){
+  localStorage.setItem(ANALYTICS_CONSENT_KEY,enabled?'yes':'no');
+  const modal=$('analyticsConsentModal');if(modal)modal.classList.remove('show');
+  refreshAnalyticsUi();
+  if(enabled)trackUsage('analytics_consent_granted',{source:'app'});
+}
+function initAnalyticsUi(){
+  const saved=localStorage.getItem(ANALYTICS_CONSENT_KEY);
+  const opt=$('analyticsOptIn'),allow=$('analyticsAllow'),decline=$('analyticsDecline'),modal=$('analyticsConsentModal');
+  if(opt)opt.onchange=()=>{setAnalyticsConsent(opt.checked);trackUsage('analytics_setting_changed',{enabled:opt.checked})};
+  if(allow)allow.onclick=()=>setAnalyticsConsent(true);
+  if(decline)decline.onclick=()=>setAnalyticsConsent(false);
+  refreshAnalyticsUi();
+  if(saved===null&&modal)modal.classList.add('show');
+  if(saved==='yes')trackUsage('app_open',{launch:true});
+}
+
 function importBackupState(raw){
   try{
     if(!raw) return false;
@@ -103,6 +138,7 @@ function showPage(id){
  if(id==='history') {fillMonths();renderHistory();}
  if(id==='calendarPage') renderCalendar();
  if(id==='stats') renderStats();
+ trackUsage('screen_view',{screen:id});
  window.scrollTo({top:0,behavior:'smooth'});
 }
 window.showPage=showPage;
@@ -133,7 +169,7 @@ $('saveTrip').onclick=()=>{
  const trip={id:Date.now(),date:$('date').value||todayLocal(),weight:$('weight').value,mileage:val('mileage'),noLoader:$('noLoader').checked,
  secondTrip:$('secondTrip').checked,balloons:val('balloons'),racks:val('racks'),manualExtra:val('manualExtra'),
  comment:$('comment').value.trim(),total:calculate(),ratesSnapshot:loadRates()};
- const a=loadTrips();a.push(trip);saveTrips(a);resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
+ const a=loadTrips();a.push(trip);saveTrips(a);trackUsage('shift_saved',{method:'manual_or_voice'});resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
  setTimeout(()=>alert('Смена сохранена'),100)
 };
 
@@ -225,7 +261,7 @@ function renderHistory(){
  $('historyList').innerHTML=a.length?a.map(t=>`<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.secondTrip?'второй рейс · ':''}${esc(t.comment||'без комментария')}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Ничего не найдено</div>'
 }
 $('historyMonth').onchange=renderHistory;$('historySearch').oninput=renderHistory;
-window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
+window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));trackUsage('shift_deleted');renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
 
 let statsDays=7;
 let statsOffsetDays=0;
