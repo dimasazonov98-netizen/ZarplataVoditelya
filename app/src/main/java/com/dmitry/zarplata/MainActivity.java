@@ -150,6 +150,16 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String saveTextFile(String filename, String mimeType, String content) {
+            try {
+                writeNamedDownload(filename, mimeType, content);
+                return "ok";
+            } catch (Exception e) {
+                return "error";
+            }
+        }
+
+        @JavascriptInterface
         public void startVoiceInput() {
             runOnUiThread(() -> launchVoiceIntent());
         }
@@ -288,38 +298,51 @@ public class MainActivity extends Activity {
                 "window.onVoiceError && window.onVoiceError(" + JSONObject.quote(text) + ");", null));
     }
 
-    private void writeExternalBackup(String json) throws Exception {
+    private String safeFilename(String filename) {
+        String name = filename == null ? "file.txt" : filename.trim();
+        name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (name.isEmpty()) name = "file.txt";
+        return name;
+    }
+
+    private void writeNamedDownload(String filename, String mimeType, String content) throws Exception {
+        String safeName = safeFilename(filename);
+        String safeMime = (mimeType == null || mimeType.trim().isEmpty()) ? "text/plain" : mimeType;
+        String text = content == null ? "" : content;
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentResolver resolver = getContentResolver();
             Uri collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
             Uri target = null;
+            String relativePath = Environment.DIRECTORY_DOWNLOADS + "/" + BACKUP_FOLDER + "/";
 
-            String selection = MediaStore.Downloads.DISPLAY_NAME + "=?";
-            String[] args = new String[]{BACKUP_FILE};
-            try (Cursor c = resolver.query(
+            String selection = MediaStore.Downloads.DISPLAY_NAME + "=? AND " +
+                    MediaStore.Downloads.RELATIVE_PATH + "=?";
+            String[] args = new String[]{safeName, relativePath};
+
+            try (Cursor cursor = resolver.query(
                     collection,
                     new String[]{MediaStore.Downloads._ID},
                     selection,
                     args,
                     MediaStore.Downloads.DATE_MODIFIED + " DESC")) {
-                if (c != null && c.moveToFirst()) {
-                    target = ContentUris.withAppendedId(collection, c.getLong(0));
+                if (cursor != null && cursor.moveToFirst()) {
+                    target = ContentUris.withAppendedId(collection, cursor.getLong(0));
                 }
             }
 
             if (target == null) {
                 ContentValues values = new ContentValues();
-                values.put(MediaStore.Downloads.DISPLAY_NAME, BACKUP_FILE);
-                values.put(MediaStore.Downloads.MIME_TYPE, "application/json");
-                values.put(MediaStore.Downloads.RELATIVE_PATH,
-                        Environment.DIRECTORY_DOWNLOADS + "/" + BACKUP_FOLDER);
+                values.put(MediaStore.Downloads.DISPLAY_NAME, safeName);
+                values.put(MediaStore.Downloads.MIME_TYPE, safeMime);
+                values.put(MediaStore.Downloads.RELATIVE_PATH, relativePath);
                 target = resolver.insert(collection, values);
             }
 
-            if (target == null) throw new Exception("backup uri is null");
+            if (target == null) throw new Exception("download uri is null");
             try (OutputStream out = resolver.openOutputStream(target, "wt")) {
-                if (out == null) throw new Exception("backup stream is null");
-                out.write(json.getBytes(StandardCharsets.UTF_8));
+                if (out == null) throw new Exception("download stream is null");
+                out.write(text.getBytes(StandardCharsets.UTF_8));
                 out.flush();
             }
         } else {
@@ -329,11 +352,15 @@ public class MainActivity extends Activity {
             File dir = new File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                     BACKUP_FOLDER);
-            if (!dir.exists() && !dir.mkdirs()) throw new Exception("cannot create backup folder");
-            try (FileWriter writer = new FileWriter(new File(dir, BACKUP_FILE), false)) {
-                writer.write(json);
+            if (!dir.exists() && !dir.mkdirs()) throw new Exception("cannot create download folder");
+            try (FileWriter writer = new FileWriter(new File(dir, safeName), false)) {
+                writer.write(text);
             }
         }
+    }
+
+    private void writeExternalBackup(String json) throws Exception {
+        writeNamedDownload(BACKUP_FILE, "application/json", json);
     }
 
     private String readExternalBackup() throws Exception {
