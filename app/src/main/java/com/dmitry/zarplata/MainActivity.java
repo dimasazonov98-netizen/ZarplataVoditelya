@@ -28,6 +28,9 @@ import android.graphics.Color;
 
 import org.json.JSONObject;
 
+import io.appmetrica.analytics.AppMetrica;
+import io.appmetrica.analytics.AppMetricaConfig;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -36,9 +39,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -51,10 +51,9 @@ public class MainActivity extends Activity {
     private static final String PREF_STATE = "state_json";
     private static final String BACKUP_FILE = "zarplata_voditelya_auto_backup.json";
     private static final String BACKUP_FOLDER = "ZarplataVoditelya";
-    // Вставьте сюда публичный Project API key PostHog (начинается с phc_).
-    private static final String ANALYTICS_TOKEN = "";
-    private static final String ANALYTICS_URL = "https://eu.i.posthog.com/i/v0/e/";
-    private static final String PREF_ANALYTICS_ID = "analytics_distinct_id";
+    // Вставьте сюда API key приложения из AppMetrica: Настройки → Основное.
+    private static final String APPMETRICA_API_KEY = "";
+    private static boolean appMetricaActivated = false;
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -178,15 +177,25 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean analyticsConfigured() {
-            return ANALYTICS_TOKEN != null && !ANALYTICS_TOKEN.trim().isEmpty();
+            return APPMETRICA_API_KEY != null && !APPMETRICA_API_KEY.trim().isEmpty();
         }
 
         @JavascriptInterface
         public String trackEvent(String eventName, String propertiesJson) {
             if (!analyticsConfigured()) return "not-configured";
             if (eventName == null || !eventName.matches("[A-Za-z0-9_.-]{1,80}")) return "invalid-event";
-            sendAnalyticsEvent(eventName, propertiesJson);
-            return "queued";
+            try {
+                ensureAppMetricaInitialized();
+                String payload = sanitizeAnalyticsProperties(propertiesJson);
+                if (payload == null || payload.equals("{}")) {
+                    AppMetrica.reportEvent(eventName);
+                } else {
+                    AppMetrica.reportEvent(eventName, payload);
+                }
+                return "queued";
+            } catch (Exception e) {
+                return "error";
+            }
         }
     }
 
@@ -318,72 +327,48 @@ public class MainActivity extends Activity {
                 "window.onVoiceError && window.onVoiceError(" + JSONObject.quote(text) + ");", null));
     }
 
-    private String getAnalyticsDistinctId() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        String id = prefs.getString(PREF_ANALYTICS_ID, "");
-        if (id == null || id.isEmpty()) {
-            id = UUID.randomUUID().toString();
-            prefs.edit().putString(PREF_ANALYTICS_ID, id).apply();
-        }
-        return id;
+    private synchronized void ensureAppMetricaInitialized() {
+        if (appMetricaActivated) return;
+        if (APPMETRICA_API_KEY == null || APPMETRICA_API_KEY.trim().isEmpty()) return;
+
+        AppMetricaConfig config = AppMetricaConfig.newConfigBuilder(APPMETRICA_API_KEY)
+                .withAdvIdentifiersTracking(false)
+                .withLocationTracking(false)
+                .withCrashReporting(false)
+                .withNativeCrashReporting(false)
+                .build();
+
+        AppMetrica.activate(getApplicationContext(), config);
+        appMetricaActivated = true;
     }
 
-    private void sendAnalyticsEvent(String eventName, String propertiesJson) {
-        new Thread(() -> {
-            HttpURLConnection connection = null;
+    private String sanitizeAnalyticsProperties(String propertiesJson) {
+        try {
+            JSONObject safe = new JSONObject();
+            safe.put("app_name", "TRUK WALLET");
+            safe.put("platform", "android");
+            safe.put("android_version", Build.VERSION.RELEASE == null ? "" : Build.VERSION.RELEASE);
             try {
-                JSONObject props = new JSONObject();
-                if (propertiesJson != null && !propertiesJson.trim().isEmpty()) {
-                    JSONObject supplied = new JSONObject(propertiesJson);
-                    java.util.Iterator<String> keys = supplied.keys();
-                    while (keys.hasNext()) {
-                        String key = keys.next();
-                        Object value = supplied.opt(key);
-                        if (value == null || value == JSONObject.NULL ||
-                                value instanceof String || value instanceof Number || value instanceof Boolean) {
-                            props.put(key, value);
-                        }
+                safe.put("app_version", getPackageManager()
+                        .getPackageInfo(getPackageName(), 0).versionName);
+            } catch (Exception ignored) {}
+
+            if (propertiesJson != null && !propertiesJson.trim().isEmpty()) {
+                JSONObject supplied = new JSONObject(propertiesJson);
+                java.util.Iterator<String> keys = supplied.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    Object value = supplied.opt(key);
+                    if (value == null || value == JSONObject.NULL ||
+                            value instanceof String || value instanceof Number || value instanceof Boolean) {
+                        safe.put(key, value);
                     }
                 }
-
-                props.put("app_name", "TRUK WALLET");
-                props.put("platform", "android");
-                props.put("android_version", Build.VERSION.RELEASE == null ? "" : Build.VERSION.RELEASE);
-                try {
-                    props.put("app_version", getPackageManager()
-                            .getPackageInfo(getPackageName(), 0).versionName);
-                } catch (Exception ignored) {}
-
-                JSONObject body = new JSONObject();
-                body.put("api_key", ANALYTICS_TOKEN);
-                body.put("event", eventName);
-                body.put("distinct_id", getAnalyticsDistinctId());
-                body.put("properties", props);
-
-                URL url = new URL(ANALYTICS_URL);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("POST");
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(8000);
-                connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-
-                byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream out = connection.getOutputStream()) {
-                    out.write(payload);
-                    out.flush();
-                }
-                int code = connection.getResponseCode();
-                if (code >= 200 && code < 300 && connection.getInputStream() != null) {
-                    connection.getInputStream().close();
-                } else if (connection.getErrorStream() != null) {
-                    connection.getErrorStream().close();
-                }
-            } catch (Exception ignored) {
-            } finally {
-                if (connection != null) connection.disconnect();
             }
-        }).start();
+            return safe.toString();
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 
     private String safeFilename(String filename) {
