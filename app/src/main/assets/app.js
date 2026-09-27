@@ -34,13 +34,35 @@ function setAnalyticsConsent(enabled){
 }
 function initAnalyticsUi(){
   const saved=localStorage.getItem(ANALYTICS_CONSENT_KEY);
-  const opt=$('analyticsOptIn'),allow=$('analyticsAllow'),decline=$('analyticsDecline'),modal=$('analyticsConsentModal');
+  const opt=$('analyticsOptIn'),allow=$('analyticsAllow'),decline=$('analyticsDecline'),modal=$('analyticsConsentModal'),test=$('analyticsTest');
   if(opt)opt.onchange=()=>{setAnalyticsConsent(opt.checked);trackUsage('analytics_setting_changed',{enabled:opt.checked})};
   if(allow)allow.onclick=()=>setAnalyticsConsent(true);
   if(decline)decline.onclick=()=>setAnalyticsConsent(false);
+  if(test)test.onclick=()=>{
+    const status=$('analyticsStatus');
+    if(!analyticsAllowed()){
+      if(status)status.textContent='Статус: сначала включите аналитику';
+      return
+    }
+    if(!analyticsConfigured()||!nativeAvailable()||typeof AndroidData.sendAnalyticsTest!=='function'){
+      if(status)status.textContent='Статус: AppMetrica не настроена';
+      return
+    }
+    try{
+      const result=AndroidData.sendAnalyticsTest();
+      if(status)status.textContent=result&&String(result).startsWith('sent:')
+        ?'Статус: тест отправлен · SDK '+String(result).slice(5)
+        :'Статус: ошибка отправки теста';
+    }catch(e){
+      if(status)status.textContent='Статус: ошибка отправки теста'
+    }
+  };
   refreshAnalyticsUi();
   if(saved===null&&modal)modal.classList.add('show');
-  if(saved==='yes')trackUsage('app_open',{launch:true});
+  if(saved==='yes'){
+    trackUsage('app_open',{launch:true});
+    setTimeout(()=>trackUsage('app_active',{after_seconds:3}),3000);
+  }
 }
 
 function importBackupState(raw){
