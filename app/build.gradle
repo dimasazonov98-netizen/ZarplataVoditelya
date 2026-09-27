@@ -1,8 +1,8 @@
-def appMetricaKey = System.getenv("APPMETRICA_API_KEY") ?: ""
-
 plugins {
     id 'com.android.application'
 }
+
+def appMetricaKey = System.getenv("APPMETRICA_API_KEY") ?: ""
 
 android {
     namespace 'com.dmitry.zarplata'
