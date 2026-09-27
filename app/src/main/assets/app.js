@@ -4,7 +4,7 @@ const OLD_KEY='driver_salary_trips_v1';
 const OLD_ANDROID_KEY='zarplata_android_v1';
 const KEY_RATES='driver_salary_rates_v2_3';
 const OLD_RATES='driver_salary_rates_v1';
-const defaultRates={"2-3":5200,"3-4":5500,"4-5":5800,noLoader:1500,balloon:200,rack:150,over180:{"2-3":1500,"3-4":1700,"4-5":1700},over400:{"2-3":2200,"3-4":2500,"4-5":2500},secondTrip:4000};
+const defaultRates=TariffEngine.defaultConfig();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nativeAvailable=()=>typeof window.AndroidData!=='undefined';
@@ -132,24 +132,29 @@ if(!localStorage.getItem(KEY_RATES)){
       localStorage.getItem(OLD_RATES) || '{}'
     )
   }catch(e){}
-  localStorage.setItem(KEY_RATES,JSON.stringify({
-    ...prev,
-    "2-3":5200,"3-4":5500,"4-5":5800,
-    noLoader:1500,balloon:200,rack:150,
-    over180:{"2-3":1500,"3-4":1700,"4-5":1700},
-    over400:{"2-3":2200,"3-4":2500,"4-5":2500},
-    secondTrip:4000
-  }));
+  localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.normalizeConfig(prev)));
+}else{
+  try{
+    const normalized=TariffEngine.normalizeConfig(JSON.parse(localStorage.getItem(KEY_RATES)||'{}'));
+    localStorage.setItem(KEY_RATES,JSON.stringify(normalized));
+  }catch(e){
+    localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.defaultConfig()));
+  }
 }
 
-const loadTrips=()=>JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]');
-const saveTrips=a=>{localStorage.setItem(KEY_TRIPS,JSON.stringify(a));persistNativeBackup();};
-const loadRates=()=>({...defaultRates,...JSON.parse(localStorage.getItem(KEY_RATES)||'{}')});
-const saveRatesObj=r=>{localStorage.setItem(KEY_RATES,JSON.stringify(r));persistNativeBackup();};
+const loadTrips=()=>{
+  try{const x=JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}
+};
+const saveTrips=a=>{localStorage.setItem(KEY_TRIPS,JSON.stringify(Array.isArray(a)?a:[]));persistNativeBackup();};
+const loadRates=()=>{
+  try{return TariffEngine.normalizeConfig(JSON.parse(localStorage.getItem(KEY_RATES)||'{}'))}
+  catch(e){return TariffEngine.defaultConfig()}
+};
+const saveRatesObj=r=>{localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.normalizeConfig(r)));persistNativeBackup();};
 
 function todayLocal(){const d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString().slice(0,10)}
 $('date').value=todayLocal();
-const val=id=>Number($(id).value)||0;
+const val=id=>{const el=$(id);return el?(Number(el.value)||0):0};
 
 function showPage(id){
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
