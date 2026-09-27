@@ -14,7 +14,7 @@
   <div class="topbar">
     <div class="brand-wrap">
       <div class="app-badge"><img src="app-icon.webp" alt=""></div>
-      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.5.4</small></div>
+      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.5.5</small></div>
     </div>
     <button class="iconbtn" onclick="showPage('settings')">⚙</button>
   </div>
@@ -83,7 +83,17 @@
       <button class="active" data-period="7">7 дней</button>
       <button data-period="30">30 дней</button>
     </div>
-    <div class="chart-wrap"><canvas id="statsChart" class="chart"></canvas></div>
+    <div class="stats-period-nav">
+      <button id="statsPrev" class="stats-arrow" aria-label="Предыдущий период">‹</button>
+      <div class="stats-range" id="statsRange"></div>
+      <button id="statsNext" class="stats-arrow" aria-label="Следующий период">›</button>
+    </div>
+    <div class="chart-scroll" id="statsScroll">
+      <div class="chart-inner" id="statsChartInner">
+        <canvas id="statsChart" class="chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-swipe-hint">← Листайте график по датам →</div>
   </div>
   <div class="card">
     <div class="quick-grid">
