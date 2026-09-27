@@ -153,10 +153,19 @@ function renderHome(){
  drawChart($('miniChart'),dailySeries(7),'7 дней')
 }
 
-function dailySeries(days){
- const all=loadTrips(), map=groupByDate(all), out=[];const d=new Date();
- for(let i=days-1;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);const z=new Date(x-x.getTimezoneOffset()*60000).toISOString().slice(0,10);out.push({date:z,value:map[z]||0})}
- return out
+function localDateKey(d){
+ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+ return `${y}-${m}-${day}`
+}
+function dailySeries(days,endOffsetDays=0){
+ const all=loadTrips(),map=groupByDate(all),out=[];
+ const end=new Date();end.setHours(12,0,0,0);end.setDate(end.getDate()-Math.max(0,endOffsetDays));
+ for(let i=days-1;i>=0;i--){
+   const x=new Date(end);x.setDate(end.getDate()-i);
+   const z=localDateKey(x);
+   out.push({date:z,value:map[z]||0})
+ }
+ return out.sort((a,b)=>a.date.localeCompare(b.date))
 }
 
 function drawChart(canvas,data,title){
@@ -167,19 +176,15 @@ function drawChart(canvas,data,title){
  canvas.width=Math.max(1,Math.floor(w*dpr));canvas.height=Math.max(1,Math.floor(h*dpr));
  const ctx=canvas.getContext('2d');if(!ctx)return;
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
- const pad={l:14,r:8,t:15,b:28},iw=Math.max(1,w-pad.l-pad.r),ih=Math.max(1,h-pad.t-pad.b),max=Math.max(...data.map(x=>Number(x.value)||0),1);
+ const pad={l:18,r:12,t:15,b:30},iw=Math.max(1,w-pad.l-pad.r),ih=Math.max(1,h-pad.t-pad.b),max=Math.max(...data.map(x=>Number(x.value)||0),1);
  ctx.strokeStyle='#e1e8e4';ctx.lineWidth=1;
  for(let i=0;i<4;i++){const y=pad.t+ih*i/3;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke()}
- const bw=Math.max(2,iw/Math.max(data.length,1)*.58);
- const labelStep=data.length>20?5:data.length>10?2:1;
+ const bw=Math.max(4,Math.min(24,iw/Math.max(data.length,1)*.58));
  data.forEach((x,i)=>{
    const cx=pad.l+iw*(i+.5)/Math.max(data.length,1),bh=Math.max(0,((Number(x.value)||0)/max)*ih),y=pad.t+ih-bh;
-   if(bh>0){ctx.fillStyle='#22c55e';ctx.beginPath();roundRect(ctx,cx-bw/2,y,bw,bh,6);ctx.fill()}
-   const showLabel=i===0||i===data.length-1||i%labelStep===0;
-   if(showLabel){
-     ctx.fillStyle='#7a8880';ctx.font='10px system-ui';ctx.textAlign='center';
-     ctx.fillText(new Date(x.date+'T12:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}),cx,h-8)
-   }
+   if(bh>0){ctx.fillStyle='#22c55e';ctx.beginPath();roundRect(ctx,cx-bw/2,y,bw,bh,Math.min(6,bw/2));ctx.fill()}
+   ctx.fillStyle='#7a8880';ctx.font='10px system-ui';ctx.textAlign='center';
+   ctx.fillText(new Date(x.date+'T12:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}),cx,h-8)
  })
 }
 function roundRect(ctx,x,y,w,h,r){
@@ -223,13 +228,49 @@ $('historyMonth').onchange=renderHistory;$('historySearch').oninput=renderHistor
 window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
 
 let statsDays=7;
-function renderStats(){
- const data=dailySeries(statsDays);if($('stats').classList.contains('active'))drawChart($('statsChart'),data,`${statsDays} дней`);
- const all=loadTrips();const by=groupByDate(all);const best=Math.max(0,...Object.values(by));$('bestDay').textContent=RUB(best);
- $('noLoaderCount').textContent=all.filter(t=>t.noLoader).length;$('allCount').textContent=all.length;
- const miles=all.filter(t=>+t.mileage>0);$('avgMileage').textContent=(miles.length?Math.round(miles.reduce((a,t)=>a+(+t.mileage||0),0)/miles.length):0)+' км'
+let statsOffsetDays=0;
+function formatStatsRange(data){
+ if(!data.length)return '';
+ const opts={day:'2-digit',month:'short'};
+ const a=new Date(data[0].date+'T12:00').toLocaleDateString('ru-RU',opts);
+ const b=new Date(data[data.length-1].date+'T12:00').toLocaleDateString('ru-RU',opts);
+ return a+' — '+b
 }
-document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-period]').forEach(x=>x.classList.remove('active'));b.classList.add('active');statsDays=+b.dataset.period;renderStats()});
+function renderStats(){
+ const data=dailySeries(statsDays,statsOffsetDays);
+ const range=$('statsRange');if(range)range.textContent=formatStatsRange(data);
+ const next=$('statsNext');if(next)next.disabled=statsOffsetDays===0;
+
+ if($('stats').classList.contains('active')){
+   const scroll=$('statsScroll'),inner=$('statsChartInner'),canvas=$('statsChart');
+   if(scroll&&inner&&canvas){
+     const viewport=Math.max(280,scroll.clientWidth||280);
+     const chartWidth=statsDays>=30?Math.max(viewport,data.length*44):viewport;
+     inner.style.width=chartWidth+'px';
+     canvas.style.width='100%';
+     drawChart(canvas,data,`${statsDays} дней`);
+     requestAnimationFrame(()=>{scroll.scrollLeft=scroll.scrollWidth-scroll.clientWidth})
+   }
+ }
+
+ const start=data[0]?.date||'',end=data[data.length-1]?.date||'';
+ const periodTrips=loadTrips().filter(t=>t.date>=start&&t.date<=end);
+ const by=groupByDate(periodTrips),best=Math.max(0,...Object.values(by));
+ $('bestDay').textContent=RUB(best);
+ $('noLoaderCount').textContent=periodTrips.filter(t=>t.noLoader).length;
+ $('allCount').textContent=periodTrips.length;
+ const miles=periodTrips.filter(t=>+t.mileage>0);
+ $('avgMileage').textContent=(miles.length?Math.round(miles.reduce((a,t)=>a+(+t.mileage||0),0)/miles.length):0)+' км'
+}
+document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('[data-period]').forEach(x=>x.classList.remove('active'));
+ b.classList.add('active');
+ statsDays=+b.dataset.period;
+ statsOffsetDays=0;
+ renderStats()
+});
+$('statsPrev').onclick=()=>{statsOffsetDays+=statsDays;renderStats()};
+$('statsNext').onclick=()=>{statsOffsetDays=Math.max(0,statsOffsetDays-statsDays);renderStats()};
 
 function populateRates(){
  const r=loadRates();$('rate23').value=r['2-3'];$('rate34').value=r['3-4'];$('rate45').value=r['4-5'];$('rateNoLoader').value=r.noLoader;$('rateBalloon').value=r.balloon;$('rateRack').value=r.rack;$('rate180_23').value=r.over180['2-3'];$('rate400_23').value=r.over400['2-3'];$('rate180_34').value=r.over180['3-4'];$('rate400_34').value=r.over400['3-4'];$('rate180_45').value=r.over180['4-5'];$('rate400_45').value=r.over400['4-5'];$('rateSecond').value=r.secondTrip
