@@ -19,8 +19,8 @@ android {
         applicationId 'com.dmitry.zarplata'
         minSdk 24
         targetSdk 34
-        versionCode 15
-        versionName '1.5.2 New Icon'
+        versionCode 16
+        versionName '1.5.3 TRUK WALLET'
     }
 
     buildTypes {

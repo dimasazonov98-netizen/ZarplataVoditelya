@@ -14,7 +14,7 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_luxe"
         android:roundIcon="@drawable/ic_launcher_luxe"
-        android:label="Зарплата водителя"
+        android:label="TRUK WALLET"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <activity
