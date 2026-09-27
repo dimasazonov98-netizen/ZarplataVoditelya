@@ -203,7 +203,7 @@ function renderShiftTariffs(){
  const mileage=cfg.extras.filter(e=>e.kind==='mileage');
  const mileageHtml=mileage.length?`<div class="auto-extra"><b>Автоматически по пробегу</b><br>${mileage.map(e=>{
    const base=e.baseId?(cfg.bases.find(b=>b.id===e.baseId)?.name||'выбранный тариф'):'любой тариф';
-   return `${esc(e.name)}: от ${Math.round(e.threshold)} км · ${base} · ${e.rate>=0?'+':''}${RUB(e.rate)}`;
+   return `${esc(e.name)}: от ${Math.round(e.threshold)} км · ${esc(base)} · ${e.rate>=0?'+':''}${RUB(e.rate)}`;
  }).join('<br>')}</div>`:'';
  box.innerHTML=controls+ mileageHtml;
  box.querySelectorAll('input[data-extra-id]').forEach(el=>{
@@ -297,7 +297,7 @@ function renderHome(){
  $('monthTotal').textContent=RUB(sum);$('todayTotal').textContent=RUB(todaySum);$('monthCount').textContent=cur.length;$('avgShift').textContent=RUB(cur.length?sum/cur.length:0);
  const rec=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,4);
  $('recentList').innerHTML=rec.length?rec.map(t=>{
-   const extras=tripExtrasList(t),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
+   const extras=tripExtrasList(t).map(esc),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
    return `<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${esc(tripBaseLabel(t))}</div><div class="list-meta">${meta}</div></div><div class="amount">${RUB(t.total)}</div></div>`
  }).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
  drawChart($('miniChart'),dailySeries(7),'7 дней')
