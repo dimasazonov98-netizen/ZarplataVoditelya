@@ -303,15 +303,16 @@ document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{
  b.classList.add('active');
  statsDays=+b.dataset.period;
  statsOffsetDays=0;
+ trackUsage('stats_period_selected',{days:statsDays});
  renderStats()
 });
-$('statsPrev').onclick=()=>{statsOffsetDays+=statsDays;renderStats()};
-$('statsNext').onclick=()=>{statsOffsetDays=Math.max(0,statsOffsetDays-statsDays);renderStats()};
+$('statsPrev').onclick=()=>{statsOffsetDays+=statsDays;trackUsage('stats_period_navigated',{direction:'previous',days:statsDays});renderStats()};
+$('statsNext').onclick=()=>{statsOffsetDays=Math.max(0,statsOffsetDays-statsDays);trackUsage('stats_period_navigated',{direction:'next',days:statsDays});renderStats()};
 
 function populateRates(){
  const r=loadRates();$('rate23').value=r['2-3'];$('rate34').value=r['3-4'];$('rate45').value=r['4-5'];$('rateNoLoader').value=r.noLoader;$('rateBalloon').value=r.balloon;$('rateRack').value=r.rack;$('rate180_23').value=r.over180['2-3'];$('rate400_23').value=r.over400['2-3'];$('rate180_34').value=r.over180['3-4'];$('rate400_34').value=r.over400['3-4'];$('rate180_45').value=r.over180['4-5'];$('rate400_45').value=r.over400['4-5'];$('rateSecond').value=r.secondTrip
 }
-$('saveRates').onclick=()=>{saveRatesObj({"2-3":val('rate23'),"3-4":val('rate34'),"4-5":val('rate45'),noLoader:val('rateNoLoader'),balloon:val('rateBalloon'),rack:val('rateRack'),over180:{"2-3":val('rate180_23'),"3-4":val('rate180_34'),"4-5":val('rate180_45')},over400:{"2-3":val('rate400_23'),"3-4":val('rate400_34'),"4-5":val('rate400_45')},secondTrip:val('rateSecond')});calculate();alert('Тарифы сохранены')};
+$('saveRates').onclick=()=>{saveRatesObj({"2-3":val('rate23'),"3-4":val('rate34'),"4-5":val('rate45'),noLoader:val('rateNoLoader'),balloon:val('rateBalloon'),rack:val('rateRack'),over180:{"2-3":val('rate180_23'),"3-4":val('rate180_34'),"4-5":val('rate180_45')},over400:{"2-3":val('rate400_23'),"3-4":val('rate400_34'),"4-5":val('rate400_45')},secondTrip:val('rateSecond')});trackUsage('rates_saved');calculate();alert('Тарифы сохранены')};
 
 function browserSaveText(filename,mime,content){
  const blob=new Blob([content],{type:mime}),a=document.createElement('a');
@@ -330,17 +331,17 @@ function saveTextFile(filename,mime,content){
 $('exportCsv').onclick=()=>{
  const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Вес','Пробег','Без грузчика','Второй рейс','Баллоны','Стойки','Доплата','Комментарий','Итого'];
  const csv=[head,...rows.map(t=>[t.date,t.weight,t.mileage,t.noLoader?'Да':'Нет',t.secondTrip?'Да':'Нет',t.balloons,t.racks,t.manualExtra,t.comment,t.total])].map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
- saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv)
+ saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv);trackUsage('csv_exported')
 };
 $('backup').onclick=()=>{
  const d={version:5,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
- saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2))
+ saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2));trackUsage('backup_exported')
 };
 $('restoreBtn').onclick=()=>$('restoreFile').click();
-$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
+$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();trackUsage('backup_restored');alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
 
 window.addEventListener('resize',()=>{if($('home').classList.contains('active'))renderHome();if($('stats').classList.contains('active'))renderStats()});
-populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();setTimeout(persistNativeBackup,500);
+populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();initAnalyticsUi();setTimeout(persistNativeBackup,500);
 
 /* Voice input 1.3.0 */
 const RU_NUMBERS={
@@ -402,6 +403,7 @@ function startVoiceEntry(){
   showPage('add');
   try{
     setVoiceActive(true);
+    trackUsage('voice_input_started');
     showVoiceToast('Говорите…','Открываю системный голосовой ввод Android…',0);
     window.location.href='driverapp://voice';
   }catch(e){
@@ -500,10 +502,12 @@ window.onVoicePartial=text=>{
 window.onVoiceResult=text=>{
   setVoiceActive(false);
   const r=parseVoiceShift(text);
+  trackUsage('voice_input_result',{recognized:!!r.changed||!!r.save,saved:!!r.save});
   showVoiceToast(r.save?'Готово':'Распознано','«'+text+'»\n'+r.summary,r.save?3000:6500);
 };
 window.onVoiceError=msg=>{
   setVoiceActive(false);
+  trackUsage('voice_input_error');
   showVoiceToast('Голосовой ввод',msg,4500);
 };
 
