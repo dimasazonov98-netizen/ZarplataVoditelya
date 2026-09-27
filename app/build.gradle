@@ -19,8 +19,8 @@ android {
         applicationId 'com.dmitry.zarplata'
         minSdk 24
         targetSdk 34
-        versionCode 17
-        versionName '1.5.4 Chart Fix'
+        versionCode 18
+        versionName '1.5.5 Stats Scroll'
     }
 
     buildTypes {
