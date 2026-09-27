@@ -252,3 +252,15 @@ input:focus,select:focus,textarea:focus{border-color:#67c991;box-shadow:0 0 0 3p
 .chart-swipe-hint{
   text-align:center;color:var(--muted);font-size:10px;margin-top:7px
 }
+
+.analytics-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.analytics-title{font-weight:900;font-size:16px;margin-bottom:5px}
+.analytics-note{margin-top:12px;padding:11px 12px;border-radius:13px;background:#f7faf8;border:1px solid var(--line);color:#607068;font-size:11px;line-height:1.5}
+.analytics-status{margin-top:9px;color:var(--green-dark);font-size:11px;font-weight:800}
+.analytics-consent{display:none;position:fixed;inset:0;z-index:80;background:rgba(9,24,17,.46);padding:20px;align-items:flex-end;justify-content:center}
+.analytics-consent.show{display:flex}
+.analytics-consent-card{width:min(100%,520px);background:#fff;border-radius:24px;padding:20px;border:1px solid var(--line);box-shadow:0 24px 60px rgba(11,50,31,.22);margin-bottom:max(16px,env(safe-area-inset-bottom))}
+.analytics-consent-icon{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:var(--green-soft);font-size:24px}
+.analytics-consent-card h3{margin:14px 0 8px;font-size:20px}
+.analytics-consent-card p{margin:0;color:#617168;font-size:13px;line-height:1.55}
+.analytics-consent-card .secondary{margin-top:9px}
