@@ -529,8 +529,9 @@ function saveTextFile(filename,mime,content){
  browserSaveText(filename,mime,content);return false
 }
 $('exportCsv').onclick=()=>{
- const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Вес','Пробег','Без грузчика','Второй рейс','Баллоны','Стойки','Доплата','Комментарий','Итого'];
- const csv=[head,...rows.map(t=>[t.date,t.weight,t.mileage,t.noLoader?'Да':'Нет',t.secondTrip?'Да':'Нет',t.balloons,t.racks,t.manualExtra,t.comment,t.total])].map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
+ const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Тариф','Пробег','Доплаты','Доплата вручную','Комментарий','Итого'];
+ const csv=[head,...rows.map(t=>[t.date,tripBaseLabel(t),t.mileage||0,tripExtrasList(t).join(', '),t.manualExtra||0,t.comment||'',t.total||0])]
+   .map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
  saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv);trackUsage('csv_exported')
 };
 $('backup').onclick=()=>{
@@ -538,10 +539,10 @@ $('backup').onclick=()=>{
  saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2));trackUsage('backup_exported')
 };
 $('restoreBtn').onclick=()=>$('restoreFile').click();
-$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();trackUsage('backup_restored');alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
+$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderShiftTariffs();calculate();renderHome();fillMonths();renderCalendar();renderStats();trackUsage('backup_restored');alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
 
 window.addEventListener('resize',()=>{if($('home').classList.contains('active'))renderHome();if($('stats').classList.contains('active'))renderStats()});
-populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();initAnalyticsUi();setTimeout(persistNativeBackup,500);
+renderShiftTariffs();populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();initAnalyticsUi();setTimeout(persistNativeBackup,500);
 
 /* Voice input 1.3.0 */
 const RU_NUMBERS={
