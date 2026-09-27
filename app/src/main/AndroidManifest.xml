@@ -14,7 +14,7 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_luxe"
         android:roundIcon="@drawable/ic_launcher_luxe"
-        android:label="Зарплата 2.0 Luxe"
+        android:label="Зарплата водителя"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
         <activity
