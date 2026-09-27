@@ -264,3 +264,41 @@ input:focus,select:focus,textarea:focus{border-color:#67c991;box-shadow:0 0 0 3p
 .analytics-consent-card h3{margin:14px 0 8px;font-size:20px}
 .analytics-consent-card p{margin:0;color:#617168;font-size:13px;line-height:1.55}
 .analytics-consent-card .secondary{margin-top:9px}
+
+.tariff-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.tariff-editor-list{display:grid;gap:10px;margin-bottom:12px}
+.tariff-editor{
+  border:1px solid var(--line);border-radius:17px;padding:12px;background:#fbfdfc;
+  box-shadow:0 2px 8px rgba(26,55,42,.03)
+}
+.tariff-editor-top{display:grid;grid-template-columns:minmax(0,1fr) 110px 38px;gap:8px;align-items:end}
+.tariff-editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.tariff-editor label{margin:0 0 5px;font-size:10px}
+.tariff-editor input,.tariff-editor select{padding:11px 12px;border-radius:12px}
+.tariff-remove{
+  width:38px;height:42px;border:1px solid #f1c9cd;background:#fff5f5;color:#be2f3d;
+  border-radius:12px;font-size:19px;font-weight:900
+}
+.tariff-kind-hint{font-size:10px;color:var(--muted);margin-top:7px;line-height:1.4}
+.dynamic-extras{display:grid;gap:10px;margin-top:10px}
+.dynamic-extra{
+  border:1px solid var(--line);border-radius:16px;background:#fbfdfc;padding:13px 14px
+}
+.dynamic-extra-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dynamic-extra-row b{font-size:14px}
+.dynamic-extra-row small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.dynamic-extra-qty{display:grid;grid-template-columns:1fr 105px;gap:10px;align-items:end}
+.dynamic-extra-qty label{margin:0 0 5px}
+.auto-extra{
+  border:1px dashed var(--green-line);background:#f4fbf6;color:#49685a;
+  border-radius:14px;padding:10px 12px;font-size:11px;line-height:1.45
+}
+.empty-editor{
+  padding:16px;text-align:center;border:1px dashed var(--line);border-radius:15px;
+  color:var(--muted);font-size:12px
+}
+@media(max-width:420px){
+  .tariff-editor-top{grid-template-columns:minmax(0,1fr) 92px 38px}
+  .tariff-editor-grid{grid-template-columns:1fr}
+  .dynamic-extra-qty{grid-template-columns:1fr 92px}
+}
