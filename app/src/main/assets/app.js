@@ -183,6 +183,24 @@ function roundRect(ctx,x,y,w,h,r){
  r=Math.max(0,Math.min(r,w/2,h/2));
  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r)
 }
+let calendarDate=new Date();calendarDate.setDate(1);
+function renderCalendar(){
+ const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),key=`${y}-${String(m+1).padStart(2,'0')}`;
+ $('calendarTitle').textContent=new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(calendarDate);
+ const trips=loadTrips().filter(t=>monthKey(t.date)===key),map=groupByDate(trips),sum=trips.reduce((a,t)=>a+(+t.total||0),0);
+ $('calendarMonthTotal').textContent=RUB(sum);$('calendarCount').textContent=trips.length;$('calendarAvg').textContent=RUB(trips.length?sum/trips.length:0);
+ const grid=$('calendarGrid');const dows=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];let html=dows.map(x=>`<div class="dow">${x}</div>`).join('');
+ const first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7,days=last.getDate(),prevLast=new Date(y,m,0).getDate();
+ for(let i=0;i<42;i++){
+  let day,cls='',dateStr='';
+  if(i<start){day=prevLast-start+i+1;cls='muted'}
+  else if(i>=start+days){day=i-start-days+1;cls='muted'}
+  else{day=i-start+1;dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;if(dateStr===todayLocal())cls+=' today';if(map[dateStr])cls+=' has'}
+  html+=`<div class="day ${cls}"><div class="day-num">${day}</div>${dateStr&&map[dateStr]?`<div class="day-money">${Math.round(map[dateStr]/1000)}к</div><div class="dot"></div>`:''}</div>`
+ }
+ grid.innerHTML=html
+}
+
 $('prevMonth').onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderCalendar()};
 
