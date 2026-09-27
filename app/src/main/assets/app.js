@@ -1,10 +1,12 @@
 const RUB = n => new Intl.NumberFormat('ru-RU').format(Math.round(Number(n)||0)) + ' ₽';
 const KEY_TRIPS='driver_salary_trips_v2';
 const OLD_KEY='driver_salary_trips_v1';
+const OLD_ANDROID_KEY='zarplata_android_v1';
 const KEY_RATES='driver_salary_rates_v2_3';
 const OLD_RATES='driver_salary_rates_v1';
 const defaultRates={"2-3":5200,"3-4":5500,"4-5":5800,noLoader:1500,balloon:200,rack:150,over180:{"2-3":1500,"3-4":1700,"4-5":1700},over400:{"2-3":2200,"3-4":2500,"4-5":2500},secondTrip:4000};
 const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nativeAvailable=()=>typeof window.AndroidData!=='undefined';
 function importBackupState(raw){
   try{
@@ -43,6 +45,27 @@ function persistNativeBackup(){
 
 
 if(!localStorage.getItem(KEY_TRIPS) && localStorage.getItem(OLD_KEY)) localStorage.setItem(KEY_TRIPS,localStorage.getItem(OLD_KEY));
+if(!localStorage.getItem(KEY_TRIPS) && localStorage.getItem(OLD_ANDROID_KEY)){
+  try{
+    const oldAndroid=JSON.parse(localStorage.getItem(OLD_ANDROID_KEY)||'[]');
+    const source=Array.isArray(oldAndroid)?oldAndroid:(Array.isArray(oldAndroid.trips)?oldAndroid.trips:[]);
+    const migratedAndroidTrips=source.map((t,i)=>({
+      ...t,
+      id:Number(t.id)||Date.now()+i,
+      date:t.date||todayLocal(),
+      weight:['2-3','3-4','4-5'].includes(t.weight)?t.weight:'2-3',
+      mileage:Number(t.mileage)||0,
+      noLoader:!!t.noLoader,
+      secondTrip:!!t.secondTrip,
+      balloons:Number(t.balloons)||0,
+      racks:Number(t.racks)||0,
+      manualExtra:Number(t.manualExtra??t.extra)||0,
+      comment:String(t.comment||''),
+      total:Number(t.total)||0
+    }));
+    if(migratedAndroidTrips.length) localStorage.setItem(KEY_TRIPS,JSON.stringify(migratedAndroidTrips));
+  }catch(e){}
+}
 if(!localStorage.getItem(KEY_RATES)){
   let prev={};
   try{
@@ -126,7 +149,7 @@ function renderHome(){
  const sum=cur.reduce((a,t)=>a+(+t.total||0),0), todaySum=today.reduce((a,t)=>a+(+t.total||0),0);
  $('monthTotal').textContent=RUB(sum);$('todayTotal').textContent=RUB(todaySum);$('monthCount').textContent=cur.length;$('avgShift').textContent=RUB(cur.length?sum/cur.length:0);
  const rec=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,4);
- $('recentList').innerHTML=rec.length?rec.map(t=>`<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.comment||'без комментария'}</div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
+ $('recentList').innerHTML=rec.length?rec.map(t=>`<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${esc(t.comment||'без комментария')}</div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
  drawChart($('miniChart'),dailySeries(7),'7 дней')
 }
 
@@ -137,32 +160,28 @@ function dailySeries(days){
 }
 
 function drawChart(canvas,data,title){
- const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.max(300,rect.width*dpr);canvas.height=Math.max(160,rect.height*dpr);
- const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);const w=rect.width,h=rect.height;ctx.clearRect(0,0,w,h);
- const pad={l:14,r:8,t:15,b:28}, iw=w-pad.l-pad.r,ih=h-pad.t-pad.b,max=Math.max(...data.map(x=>x.value),1);
+ if(!canvas||typeof canvas.getContext!=='function')return;
+ const rect=canvas.getBoundingClientRect(),w=Math.floor(rect.width),h=Math.floor(rect.height);
+ if(w<40||h<40)return;
+ const dpr=window.devicePixelRatio||1;
+ canvas.width=Math.max(1,Math.floor(w*dpr));canvas.height=Math.max(1,Math.floor(h*dpr));
+ const ctx=canvas.getContext('2d');if(!ctx)return;
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const pad={l:14,r:8,t:15,b:28},iw=Math.max(1,w-pad.l-pad.r),ih=Math.max(1,h-pad.t-pad.b),max=Math.max(...data.map(x=>Number(x.value)||0),1);
  ctx.strokeStyle='#24334c';ctx.lineWidth=1;
  for(let i=0;i<4;i++){const y=pad.t+ih*i/3;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke()}
- const bw=iw/data.length*.58;
- data.forEach((x,i)=>{const cx=pad.l+iw*(i+.5)/data.length,bh=(x.value/max)*ih,y=pad.t+ih-bh;ctx.fillStyle='#22c55e';ctx.beginPath();roundRect(ctx,cx-bw/2,y,bw,bh,6);ctx.fill();ctx.fillStyle='#91a0b5';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(new Date(x.date+'T12:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}),cx,h-8)})
+ const bw=Math.max(2,iw/Math.max(data.length,1)*.58);
+ data.forEach((x,i)=>{
+   const cx=pad.l+iw*(i+.5)/Math.max(data.length,1),bh=Math.max(0,((Number(x.value)||0)/max)*ih),y=pad.t+ih-bh;
+   if(bh>0){ctx.fillStyle='#22c55e';ctx.beginPath();roundRect(ctx,cx-bw/2,y,bw,bh,6);ctx.fill()}
+   ctx.fillStyle='#91a0b5';ctx.font='10px system-ui';ctx.textAlign='center';
+   ctx.fillText(new Date(x.date+'T12:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'}),cx,h-8)
+ })
 }
-function roundRect(ctx,x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r)}
-
-let calendarDate=new Date();calendarDate.setDate(1);
-function renderCalendar(){
- const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),key=`${y}-${String(m+1).padStart(2,'0')}`;
- $('calendarTitle').textContent=new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(calendarDate);
- const trips=loadTrips().filter(t=>monthKey(t.date)===key),map=groupByDate(trips),sum=trips.reduce((a,t)=>a+(+t.total||0),0);
- $('calendarMonthTotal').textContent=RUB(sum);$('calendarCount').textContent=trips.length;$('calendarAvg').textContent=RUB(trips.length?sum/trips.length:0);
- const grid=$('calendarGrid');const dows=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];let html=dows.map(x=>`<div class="dow">${x}</div>`).join('');
- const first=new Date(y,m,1),last=new Date(y,m+1,0),start=(first.getDay()+6)%7,days=last.getDate(),prevLast=new Date(y,m,0).getDate();
- for(let i=0;i<42;i++){
-  let day,cls='',dateStr='';
-  if(i<start){day=prevLast-start+i+1;cls='muted'}
-  else if(i>=start+days){day=i-start-days+1;cls='muted'}
-  else{day=i-start+1;dateStr=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;if(dateStr===todayLocal())cls+=' today';if(map[dateStr])cls+=' has'}
-  html+=`<div class="day ${cls}"><div class="day-num">${day}</div>${dateStr&&map[dateStr]?`<div class="day-money">${Math.round(map[dateStr]/1000)}к</div><div class="dot"></div>`:''}</div>`
- }
- grid.innerHTML=html
+function roundRect(ctx,x,y,w,h,r){
+ if(w<=0||h<=0)return;
+ r=Math.max(0,Math.min(r,w/2,h/2));
+ ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r)
 }
 $('prevMonth').onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderCalendar()};
@@ -176,14 +195,14 @@ function renderHistory(){
  const mk=$('historyMonth').value||currentMonthKey(),q=($('historySearch').value||'').toLowerCase().trim();
  let a=loadTrips().filter(t=>monthKey(t.date)===mk).sort((x,y)=>String(y.date).localeCompare(String(x.date))||y.id-x.id);
  if(q)a=a.filter(t=>`${t.date} ${t.comment||''} ${t.weight}`.toLowerCase().includes(q));
- $('historyList').innerHTML=a.length?a.map(t=>`<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.secondTrip?'второй рейс · ':''}${t.comment||'без комментария'}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Ничего не найдено</div>'
+ $('historyList').innerHTML=a.length?a.map(t=>`<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.secondTrip?'второй рейс · ':''}${esc(t.comment||'без комментария')}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Ничего не найдено</div>'
 }
 $('historyMonth').onchange=renderHistory;$('historySearch').oninput=renderHistory;
 window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
 
 let statsDays=7;
 function renderStats(){
- const data=dailySeries(statsDays);drawChart($('statsChart'),data,`${statsDays} дней`);
+ const data=dailySeries(statsDays);if($('stats').classList.contains('active'))drawChart($('statsChart'),data,`${statsDays} дней`);
  const all=loadTrips();const by=groupByDate(all);const best=Math.max(0,...Object.values(by));$('bestDay').textContent=RUB(best);
  $('noLoaderCount').textContent=all.filter(t=>t.noLoader).length;$('allCount').textContent=all.length;
  const miles=all.filter(t=>+t.mileage>0);$('avgMileage').textContent=(miles.length?Math.round(miles.reduce((a,t)=>a+(+t.mileage||0),0)/miles.length):0)+' км'
@@ -195,12 +214,29 @@ function populateRates(){
 }
 $('saveRates').onclick=()=>{saveRatesObj({"2-3":val('rate23'),"3-4":val('rate34'),"4-5":val('rate45'),noLoader:val('rateNoLoader'),balloon:val('rateBalloon'),rack:val('rateRack'),over180:{"2-3":val('rate180_23'),"3-4":val('rate180_34'),"4-5":val('rate180_45')},over400:{"2-3":val('rate400_23'),"3-4":val('rate400_34'),"4-5":val('rate400_45')},secondTrip:val('rateSecond')});calculate();alert('Тарифы сохранены')};
 
+function browserSaveText(filename,mime,content){
+ const blob=new Blob([content],{type:mime}),a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+ setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+}
+function saveTextFile(filename,mime,content){
+ if(nativeAvailable() && typeof AndroidData.saveTextFile==='function'){
+   try{
+     const result=AndroidData.saveTextFile(filename,mime,content);
+     if(result==='ok')return true;
+   }catch(e){}
+ }
+ browserSaveText(filename,mime,content);return false
+}
 $('exportCsv').onclick=()=>{
  const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Вес','Пробег','Без грузчика','Второй рейс','Баллоны','Стойки','Доплата','Комментарий','Итого'];
  const csv=[head,...rows.map(t=>[t.date,t.weight,t.mileage,t.noLoader?'Да':'Нет',t.secondTrip?'Да':'Нет',t.balloons,t.racks,t.manualExtra,t.comment,t.total])].map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
- const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`зарплата_${m}.csv`;a.click();URL.revokeObjectURL(a.href)
+ saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv)
 };
-$('backup').onclick=()=>{const d={version:2,rates:loadRates(),trips:loadTrips()},blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='зарплата_водителя_v2_backup.json';a.click();URL.revokeObjectURL(a.href)};
+$('backup').onclick=()=>{
+ const d={version:5,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
+ saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2))
+};
 $('restoreBtn').onclick=()=>$('restoreFile').click();
 $('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
 
@@ -242,12 +278,15 @@ function shiftDate(days){
   const z=d.getTimezoneOffset()*60000;
   return new Date(d-z).toISOString().slice(0,10);
 }
-function extractUnitCount(t, nounPattern){
-  let m=t.match(new RegExp('(\\d+|[а-я]+(?:\\s+[а-я]+){0,2})\\s+(?:'+nounPattern+')'));
-  if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
-  m=t.match(new RegExp('(?:'+nounPattern+')\\s+(\\d+|[а-я]+(?:\\s+[а-я]+){0,2})'));
-  if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
-  return null;
+const COUNT_WORD='(?:\\d+|ноль|нуль|один|одна|одно|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать|тринадцать|четырнадцать|пятнадцать|шестнадцать|семнадцать|восемнадцать|девятнадцать|двадцать)';
+function extractUnitCount(t,nounPattern){
+ const before=new RegExp('(?:^|\\s)('+COUNT_WORD+')\\s+(?:'+nounPattern+')(?:\\s|$|[,.])');
+ let m=t.match(before);
+ if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
+ const after=new RegExp('(?:^|\\s)(?:'+nounPattern+')\\s+('+COUNT_WORD+')(?:\\s|$|[,.])');
+ m=t.match(after);
+ if(m){const n=spokenNumber(m[1]);if(n!==null)return n}
+ return null
 }
 function showVoiceToast(title,text,timeout=4500){
   const box=$('voiceToast'),t=$('voiceToastTitle'),p=$('voiceToastText');
@@ -273,80 +312,78 @@ function startVoiceEntry(){
 }
 function parseVoiceShift(raw){
   const t=voiceNormalize(raw);
-  if(!t) return {changed:false,save:false,summary:'Пустая фраза'};
+  if(!t)return {changed:false,save:false,summary:'Пустая фраза'};
 
   if(/^(отмена|отмени|не надо|закрой)$/.test(t)){
-    resetForm(); showPage('home');
-    return {changed:false,cancel:true,save:false,summary:'Ввод отменён'};
+    resetForm();showPage('home');
+    return {changed:false,cancel:true,save:false,summary:'Ввод отменён'}
   }
 
-  const saveRequested=/\b(сохрани|сохранить|запиши|записать)\b/.test(t);
-  const hasDetails=/(пробег|километр|тонн|грузчик|рейс|баллон|стойк|доплат|комментар)/.test(t);
-  if(saveRequested && !hasDetails){
-    if($('add').classList.contains('active')){
-      $('saveTrip').click();
-      return {changed:false,save:true,summary:'Смена сохранена'};
-    }
+  const saveRequested=/(?:^|\\s)(сохрани|сохранить|запиши|записать)(?:\\s|$|[,.])/.test(t);
+  const hasDetails=/(пробег|километр|тонн|грузчик|рейс|баллон|стойк|доплат|комментар|заметка)/.test(t);
+
+  if(saveRequested&&!hasDetails&&$('add').classList.contains('active')){
+    $('saveTrip').click();
+    return {changed:false,save:true,summary:'Смена сохранена'}
   }
 
   showPage('add');
   let changed=false;
 
-  if(/\bпозавчера\b/.test(t)){$('date').value=shiftDate(-2);changed=true}
-  else if(/\bвчера\b/.test(t)){$('date').value=shiftDate(-1);changed=true}
-  else if(/\bзавтра\b/.test(t)){$('date').value=shiftDate(1);changed=true}
-  else if(/\bсегодня\b/.test(t)){$('date').value=todayLocal();changed=true}
+  if(t.includes('позавчера')){$('date').value=shiftDate(-2);changed=true}
+  else if(t.includes('вчера')){$('date').value=shiftDate(-1);changed=true}
+  else if(t.includes('завтра')){$('date').value=shiftDate(1);changed=true}
+  else if(t.includes('сегодня')){$('date').value=todayLocal();changed=true}
 
-  if(/(?:до\s*(?:3|трех)|до\s+трех)\s*(?:т|тонн|тонны)?\b/.test(t)){
-    $('weight').value='2-3'; changed=true;
-  } else if(/(?:3\s*[- ]\s*4|от\s+трех\s+до\s+четырех|три\s+четыре)\s*(?:т|тонн|тонны)?\b/.test(t)){
-    $('weight').value='3-4'; changed=true;
-  } else if(/(?:4\s*[- ]\s*5|от\s+четырех\s+до\s+пяти|четыре\s+пять)\s*(?:т|тонн|тонны)?\b/.test(t)){
-    $('weight').value='4-5'; changed=true;
+  if(/(?:^|\\s)(?:4\\s*[- ]\\s*5|от\\s+четырех\\s+до\\s+пяти|четыре\\s+пять)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+    $('weight').value='4-5';changed=true
+  }else if(/(?:^|\\s)(?:3\\s*[- ]\\s*4|от\\s+трех\\s+до\\s+четырех|три\\s+четыре)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+    $('weight').value='3-4';changed=true
+  }else if(/(?:^|\\s)(?:до\\s*(?:3|трех)|до\\s+трех)(?:\\s*(?:т|тонн|тонны))?(?:\\s|$|[,.])/.test(t)){
+    $('weight').value='2-3';changed=true
   }
 
-  let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\s+(.+?)(?=\s+(?:без\s+грузчика|с\s+грузчиком|второй\s+рейс|2(?:-?й)?\s+рейс|баллон\w*|стойк\w*|доплат\w*|комментар\w*)|$)/);
+  let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\\s+(.+?)(?=\\s+(?:без\\s+грузчика|с\\s+грузчиком|второй\\s+рейс|2(?:-?й)?\\s+рейс|баллон\\w*|стойк\\w*|доплат\\w*|комментар\\w*|заметка)|$)/);
   let mileage=mm?spokenNumber(mm[1]):null;
   if(mileage===null){
-    mm=t.match(/(\d{2,4})\s*(?:км|километр\w*)\b/);
-    mileage=mm?Number(mm[1]):null;
+    mm=t.match(/(?:^|\\s)(\\d{2,4})\\s*(?:км|километр\\w*)(?:\\s|$|[,.])/);
+    mileage=mm?Number(mm[1]):null
   }
-  if(mileage!==null && mileage>=0){$('mileage').value=mileage;changed=true}
+  if(mileage!==null&&mileage>=0){$('mileage').value=mileage;changed=true}
 
-  if(/\bбез\s+грузчика\b/.test(t)){$('noLoader').checked=true;changed=true}
-  else if(/\bс\s+грузчиком\b/.test(t)){$('noLoader').checked=false;changed=true}
+  if(t.includes('без грузчика')){$('noLoader').checked=true;changed=true}
+  else if(t.includes('с грузчиком')){$('noLoader').checked=false;changed=true}
 
-  if(/\b(?:второй|2(?:-?й)?|два)\s+рейс/.test(t)){$('secondTrip').checked=true;changed=true}
-  else if(/\bодин\s+рейс\b/.test(t)){$('secondTrip').checked=false;changed=true}
+  if(/(?:^|\\s)(?:второй|2(?:-?й)?|два)\\s+рейс(?:а)?(?:\\s|$|[,.])/.test(t)){$('secondTrip').checked=true;changed=true}
+  else if(/(?:^|\\s)один\\s+рейс(?:\\s|$|[,.])/.test(t)){$('secondTrip').checked=false;changed=true}
 
   const balloons=extractUnitCount(t,'баллон(?:а|ов|ы)?');
   if(balloons!==null){$('balloons').value=balloons;changed=true}
-  const racks=extractUnitCount(t,'стойк(?:а|и|у|ой)?|стоек');
+  const racks=extractUnitCount(t,'(?:стойк(?:а|и|у|ой)?|стоек)');
   if(racks!==null){$('racks').value=racks;changed=true}
 
-  const extraMatch=t.match(/(?:доплата|доплату|доплатить)\s+([^,.;]{1,30}?)(?=\s+(?:комментар|баллон|стойк|рейс|без\s+грузчика)|$)/);
+  const extraMatch=t.match(/(?:доплата|доплату|доплатить)\\s+(.+?)(?=\\s+(?:комментар|заметка|баллон|стойк|рейс|без\\s+грузчика|с\\s+грузчиком)|$)/);
   if(extraMatch){
     const extra=spokenNumber(extraMatch[1]);
     if(extra!==null){$('manualExtra').value=extra;changed=true}
   }
 
-  const commentMatch=raw.match(/(?:комментарий|заметка)\s+(.+)$/i);
+  const commentMatch=String(raw).match(/(?:комментарий|заметка)\\s+(.+)$/i);
   if(commentMatch){$('comment').value=commentMatch[1].trim();changed=true}
 
   const total=calculate();
-  if(saveRequested && changed){
+  if(saveRequested&&changed){
     setTimeout(()=>$('saveTrip').click(),250);
-    return {changed:true,save:true,summary:'Распознано. Смена будет сохранена. Итого '+RUB(total)};
+    return {changed:true,save:true,summary:'Распознано. Смена будет сохранена. Итого '+RUB(total)}
   }
 
-  const parts=[];
-  parts.push($('weight').options[$('weight').selectedIndex].text);
+  const parts=[$('weight').options[$('weight').selectedIndex].text];
   if(val('mileage'))parts.push(val('mileage')+' км');
   if($('noLoader').checked)parts.push('без грузчика');
   if($('secondTrip').checked)parts.push('второй рейс');
   if(val('balloons'))parts.push('баллоны: '+val('balloons'));
   if(val('racks'))parts.push('стойки: '+val('racks'));
-  return {changed,save:false,summary:(changed?parts.join(' · ')+' · Итого '+RUB(total):'Не удалось найти параметры смены')};
+  return {changed,save:false,summary:changed?parts.join(' · ')+' · Итого '+RUB(total):'Не удалось найти параметры смены'}
 }
 
 window.onVoiceState=state=>{
