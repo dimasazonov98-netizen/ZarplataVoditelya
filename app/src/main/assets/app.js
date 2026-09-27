@@ -91,7 +91,7 @@ function persistNativeBackup(){
   if(!nativeAvailable()) return;
   try{
     const state={
-      version:4,
+      version:6,
       savedAt:new Date().toISOString(),
       rates:JSON.parse(localStorage.getItem(KEY_RATES)||'{}'),
       trips:JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]')
@@ -477,7 +477,7 @@ function renderRateEditor(){
  document.querySelectorAll('[data-remove-base]').forEach(el=>el.onclick=()=>{
    const i=+el.dataset.removeBase,removed=rateEditorConfig.bases[i];if(!removed)return;
    rateEditorConfig.bases.splice(i,1);
-   rateEditorConfig.extras.forEach(x=>{if(x.baseId===removed.id)x.baseId=''});
+   rateEditorConfig.extras=rateEditorConfig.extras.filter(x=>x.baseId!==removed.id);
    renderRateEditor()
  });
  document.querySelectorAll('[data-extra-name]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraName;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].name=el.value});
@@ -535,7 +535,7 @@ $('exportCsv').onclick=()=>{
  saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv);trackUsage('csv_exported')
 };
 $('backup').onclick=()=>{
- const d={version:5,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
+ const d={version:6,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
  saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2));trackUsage('backup_exported')
 };
 $('restoreBtn').onclick=()=>$('restoreFile').click();
