@@ -272,12 +272,33 @@ function groupByDate(trips){
  const m={};trips.forEach(t=>{m[t.date]=(m[t.date]||0)+(Number(t.total)||0)});return m
 }
 
+function tripBaseLabel(t){
+ if(t&&t.baseLabel)return String(t.baseLabel);
+ const legacy={'2-3':'до 3 т','3-4':'3–4 т','4-5':'4–5 т'};
+ return legacy[t&&t.weight]||String((t&&t.weight)||'Без базового тарифа')
+}
+function tripExtrasList(t){
+ if(Array.isArray(t&&t.extraSummary))return t.extraSummary.filter(x=>x&&x.name).map(x=>String(x.name));
+ const out=[];
+ if(t&&t.noLoader)out.push('Без грузчика');
+ if(t&&t.secondTrip)out.push('Второй рейс');
+ if(Number(t&&t.balloons)>0)out.push('Баллоны ×'+Number(t.balloons));
+ if(Number(t&&t.racks)>0)out.push('Стойки ×'+Number(t.racks));
+ return out
+}
+function tripHasExtras(t){
+ return tripExtrasList(t).length>0||Number(t&&t.manualExtra)!==0
+}
+
 function renderHome(){
- const all=loadTrips(), cur=all.filter(t=>monthKey(t.date)===currentMonthKey()), today=all.filter(t=>t.date===todayLocal());
- const sum=cur.reduce((a,t)=>a+(+t.total||0),0), todaySum=today.reduce((a,t)=>a+(+t.total||0),0);
+ const all=loadTrips(),cur=all.filter(t=>monthKey(t.date)===currentMonthKey()),today=all.filter(t=>t.date===todayLocal());
+ const sum=cur.reduce((a,t)=>a+(+t.total||0),0),todaySum=today.reduce((a,t)=>a+(+t.total||0),0);
  $('monthTotal').textContent=RUB(sum);$('todayTotal').textContent=RUB(todaySum);$('monthCount').textContent=cur.length;$('avgShift').textContent=RUB(cur.length?sum/cur.length:0);
  const rec=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,4);
- $('recentList').innerHTML=rec.length?rec.map(t=>`<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${esc(t.comment||'без комментария')}</div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
+ $('recentList').innerHTML=rec.length?rec.map(t=>{
+   const extras=tripExtrasList(t),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
+   return `<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${esc(tripBaseLabel(t))}</div><div class="list-meta">${meta}</div></div><div class="amount">${RUB(t.total)}</div></div>`
+ }).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
  drawChart($('miniChart'),dailySeries(7),'7 дней')
 }
 
@@ -349,8 +370,11 @@ function fillMonths(){
 function renderHistory(){
  const mk=$('historyMonth').value||currentMonthKey(),q=($('historySearch').value||'').toLowerCase().trim();
  let a=loadTrips().filter(t=>monthKey(t.date)===mk).sort((x,y)=>String(y.date).localeCompare(String(x.date))||y.id-x.id);
- if(q)a=a.filter(t=>`${t.date} ${t.comment||''} ${t.weight}`.toLowerCase().includes(q));
- $('historyList').innerHTML=a.length?a.map(t=>`<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.secondTrip?'второй рейс · ':''}${esc(t.comment||'без комментария')}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Ничего не найдено</div>'
+ if(q)a=a.filter(t=>`${t.date} ${t.comment||''} ${tripBaseLabel(t)} ${tripExtrasList(t).join(' ')}`.toLowerCase().includes(q));
+ $('historyList').innerHTML=a.length?a.map(t=>{
+   const extras=tripExtrasList(t),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
+   return `<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${esc(tripBaseLabel(t))}</div><div class="list-meta">${meta}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`
+ }).join(''):'<div class="empty">Ничего не найдено</div>'
 }
 $('historyMonth').onchange=renderHistory;$('historySearch').oninput=renderHistory;
 window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));trackUsage('shift_deleted');renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
@@ -385,7 +409,7 @@ function renderStats(){
  const periodTrips=loadTrips().filter(t=>t.date>=start&&t.date<=end);
  const by=groupByDate(periodTrips),best=Math.max(0,...Object.values(by));
  $('bestDay').textContent=RUB(best);
- $('noLoaderCount').textContent=periodTrips.filter(t=>t.noLoader).length;
+ $('noLoaderCount').textContent=periodTrips.filter(tripHasExtras).length;
  $('allCount').textContent=periodTrips.length;
  const miles=periodTrips.filter(t=>+t.mileage>0);
  $('avgMileage').textContent=(miles.length?Math.round(miles.reduce((a,t)=>a+(+t.mileage||0),0)/miles.length):0)+' км'
