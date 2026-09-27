@@ -29,13 +29,7 @@ jobs:
       - name: Prepare Luxe assets
         run: bash scripts/prepare_luxe_assets.sh
       - name: Check JavaScript syntax
-        run: |
-          node --check app/src/main/assets/tariff-engine.js
-          node --check app/src/main/assets/app.js
-      - name: Test tariff engine
-        run: node scripts/test_tariff_engine.js
-      - name: Test UI consistency
-        run: node scripts/test_ui_consistency.js
+        run: node --check app/src/main/assets/app.js
       - name: Verify AppMetrica key
         run: |
           if [ -z "$APPMETRICA_API_KEY" ]; then
@@ -69,6 +63,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TRUK-WALLET-v1.7.0-FLEXIBLE-TARIFFS-APK
+          name: TRUK-WALLET-v1.6.4-APPMETRICA-FLUSH-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

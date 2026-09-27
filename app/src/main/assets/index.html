@@ -14,7 +14,7 @@
   <div class="topbar">
     <div class="brand-wrap">
       <div class="app-badge"><img src="app-icon.webp" alt=""></div>
-      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.7.0</small></div>
+      <div class="brand"><strong>TRUK <span class="brand-accent">WALLET</span></strong><small>Ваш доход в дороге · v1.6.4</small></div>
     </div>
     <button class="iconbtn" onclick="showPage('settings')">⚙</button>
   </div>
@@ -98,7 +98,7 @@
   <div class="card">
     <div class="quick-grid">
       <div class="quick"><span>Лучший день</span><b id="bestDay">0 ₽</b></div>
-      <div class="quick"><span>С доплатами</span><b id="noLoaderCount">0</b></div>
+      <div class="quick"><span>Без грузчика</span><b id="noLoaderCount">0</b></div>
       <div class="quick"><span>Средний пробег</span><b id="avgMileage">0 км</b></div>
       <div class="quick"><span>Всего смен</span><b id="allCount">0</b></div>
     </div>
@@ -110,13 +110,31 @@
   <div class="card">
     <div class="grid2">
       <div><label>Дата</label><input id="date" type="date"></div>
-      <div><label>Базовый тариф</label><select id="weight"></select></div>
+      <div><label>Вес</label>
+        <select id="weight">
+          <option value="2-3">до 3 т</option>
+          <option value="3-4">3–4 т</option>
+          <option value="4-5">4–5 т</option>
+        </select>
+      </div>
     </div>
 
     <label>Пробег, км</label>
     <input id="mileage" type="number" min="0" step="1" inputmode="numeric" placeholder="Например, 240">
 
-    <div id="dynamicExtras" class="dynamic-extras"></div>
+    <div class="toggle">
+      <div><b>Без грузчика</b><small>Доплата +1500 ₽</small></div>
+      <label class="switch"><input id="noLoader" type="checkbox"><span class="slider"></span></label>
+    </div>
+    <div class="toggle">
+      <div><b>Второй рейс</b><small>Доплата по тарифам</small></div>
+      <label class="switch"><input id="secondTrip" type="checkbox"><span class="slider"></span></label>
+    </div>
+
+    <div class="grid2">
+      <div><label>Баллоны</label><input id="balloons" type="number" min="0" step="1" value="0"></div>
+      <div><label>Стойки</label><input id="racks" type="number" min="0" step="1" value="0"></div>
+    </div>
 
     <label>Доплата вручную, ₽</label>
     <input id="manualExtra" type="number" step="1" value="0">
@@ -138,27 +156,22 @@
 <section id="settings" class="page">
   <div class="topbar"><div class="brand">Настройки<small>Тарифы и резервная копия</small></div></div>
   <div class="card">
-    <div class="tariff-section-head">
-      <div>
-        <div class="analytics-title">Базовые тарифы</div>
-        <div class="muted">Например: «до 3 т», «5 т», «Ночная смена». Можно добавлять и удалять.</div>
-      </div>
+    <div class="grid2">
+      <div><label>2–3 т, ₽</label><input id="rate23" type="number"></div>
+      <div><label>3–4 т, ₽</label><input id="rate34" type="number"></div>
+      <div><label>4–5 т, ₽</label><input id="rate45" type="number"></div>
+      <div><label>Без грузчика, ₽</label><input id="rateNoLoader" type="number"></div>
+      <div><label>Баллон, ₽</label><input id="rateBalloon" type="number"></div>
+      <div><label>Стойка, ₽</label><input id="rateRack" type="number"></div>
+      <div><label>180+ км, до 3 т, ₽</label><input id="rate180_23" type="number"></div>
+      <div><label>400+ км, до 3 т, ₽</label><input id="rate400_23" type="number"></div>
+      <div><label>180+ км, 3–4 т, ₽</label><input id="rate180_34" type="number"></div>
+      <div><label>400+ км, 3–4 т, ₽</label><input id="rate400_34" type="number"></div>
+      <div><label>180+ км, 4–5 т, ₽</label><input id="rate180_45" type="number"></div>
+      <div><label>400+ км, 4–5 т, ₽</label><input id="rate400_45" type="number"></div>
+      <div><label>Второй рейс, ₽</label><input id="rateSecond" type="number"></div>
     </div>
-    <div id="baseRatesList" class="tariff-editor-list"></div>
-    <button id="addBaseRate" class="secondary">＋ Добавить базовый тариф</button>
-  </div>
-
-  <div class="card">
-    <div class="tariff-section-head">
-      <div>
-        <div class="analytics-title">Доплаты и правила</div>
-        <div class="muted">Флажок — разовая доплата, количество — сумма за каждую единицу, пробег — автоматическая доплата от указанного километража.</div>
-      </div>
-    </div>
-    <div id="extraRatesList" class="tariff-editor-list"></div>
-    <button id="addExtraRate" class="secondary">＋ Добавить доплату</button>
     <button id="saveRates" class="primary">Сохранить тарифы</button>
-    <div class="analytics-note">Для правил по пробегу применяется только самое высокое подходящее правило. Так доплаты 180+ и 400+ не складываются между собой.</div>
   </div>
   <div class="card">
     <div class="analytics-head">
@@ -207,7 +220,6 @@
     <button class="navbtn" data-page="stats"><b>⌁</b>Статистика</button>
   </div>
 </nav>
-<script src="tariff-engine.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

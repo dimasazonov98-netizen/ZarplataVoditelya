@@ -4,7 +4,7 @@ const OLD_KEY='driver_salary_trips_v1';
 const OLD_ANDROID_KEY='zarplata_android_v1';
 const KEY_RATES='driver_salary_rates_v2_3';
 const OLD_RATES='driver_salary_rates_v1';
-const defaultRates=TariffEngine.defaultConfig();
+const defaultRates={"2-3":5200,"3-4":5500,"4-5":5800,noLoader:1500,balloon:200,rack:150,over180:{"2-3":1500,"3-4":1700,"4-5":1700},over400:{"2-3":2200,"3-4":2500,"4-5":2500},secondTrip:4000};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nativeAvailable=()=>typeof window.AndroidData!=='undefined';
@@ -91,7 +91,7 @@ function persistNativeBackup(){
   if(!nativeAvailable()) return;
   try{
     const state={
-      version:6,
+      version:4,
       savedAt:new Date().toISOString(),
       rates:JSON.parse(localStorage.getItem(KEY_RATES)||'{}'),
       trips:JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]')
@@ -132,29 +132,24 @@ if(!localStorage.getItem(KEY_RATES)){
       localStorage.getItem(OLD_RATES) || '{}'
     )
   }catch(e){}
-  localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.normalizeConfig(prev)));
-}else{
-  try{
-    const normalized=TariffEngine.normalizeConfig(JSON.parse(localStorage.getItem(KEY_RATES)||'{}'));
-    localStorage.setItem(KEY_RATES,JSON.stringify(normalized));
-  }catch(e){
-    localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.defaultConfig()));
-  }
+  localStorage.setItem(KEY_RATES,JSON.stringify({
+    ...prev,
+    "2-3":5200,"3-4":5500,"4-5":5800,
+    noLoader:1500,balloon:200,rack:150,
+    over180:{"2-3":1500,"3-4":1700,"4-5":1700},
+    over400:{"2-3":2200,"3-4":2500,"4-5":2500},
+    secondTrip:4000
+  }));
 }
 
-const loadTrips=()=>{
-  try{const x=JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}
-};
-const saveTrips=a=>{localStorage.setItem(KEY_TRIPS,JSON.stringify(Array.isArray(a)?a:[]));persistNativeBackup();};
-const loadRates=()=>{
-  try{return TariffEngine.normalizeConfig(JSON.parse(localStorage.getItem(KEY_RATES)||'{}'))}
-  catch(e){return TariffEngine.defaultConfig()}
-};
-const saveRatesObj=r=>{localStorage.setItem(KEY_RATES,JSON.stringify(TariffEngine.normalizeConfig(r)));persistNativeBackup();};
+const loadTrips=()=>JSON.parse(localStorage.getItem(KEY_TRIPS)||'[]');
+const saveTrips=a=>{localStorage.setItem(KEY_TRIPS,JSON.stringify(a));persistNativeBackup();};
+const loadRates=()=>({...defaultRates,...JSON.parse(localStorage.getItem(KEY_RATES)||'{}')});
+const saveRatesObj=r=>{localStorage.setItem(KEY_RATES,JSON.stringify(r));persistNativeBackup();};
 
 function todayLocal(){const d=new Date(),z=d.getTimezoneOffset()*60000;return new Date(d-z).toISOString().slice(0,10)}
 $('date').value=todayLocal();
-const val=id=>{const el=$(id);return el?(Number(el.value)||0):0};
+const val=id=>Number($(id).value)||0;
 
 function showPage(id){
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -165,7 +160,6 @@ function showPage(id){
  if(id==='history') {fillMonths();renderHistory();}
  if(id==='calendarPage') renderCalendar();
  if(id==='stats') renderStats();
- if(id==='settings') populateRates();
  trackUsage('screen_view',{screen:id});
  window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -173,96 +167,31 @@ window.showPage=showPage;
 document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>showPage(b.dataset.page));
 $('fab').onclick=()=>showPage('add');
 
-function extraInputId(extra){
- if(extra.id==='noLoader')return 'noLoader';
- if(extra.id==='secondTrip')return 'secondTrip';
- if(extra.id==='balloon')return 'balloons';
- if(extra.id==='rack')return 'racks';
- return 'extra_'+extra.id
-}
-function renderShiftTariffs(){
- const cfg=loadRates(),select=$('weight'),box=$('dynamicExtras');
- const current=select?select.value:'';
- if(select){
-   if(cfg.bases.length){
-     select.innerHTML=cfg.bases.map(b=>`<option value="${esc(b.id)}">${esc(b.name)} · ${RUB(b.rate)}</option>`).join('');
-     select.value=cfg.bases.some(b=>b.id===current)?current:cfg.bases[0].id;
-   }else{
-     select.innerHTML='<option value="">Без базового тарифа</option>';
-     select.value='';
-   }
- }
- if(!box)return;
- const controls=cfg.extras.filter(e=>e.kind!=='mileage').map(e=>{
-   const id=extraInputId(e);
-   if(e.kind==='quantity'){
-     return `<div class="dynamic-extra"><div class="dynamic-extra-qty"><div><b>${esc(e.name)}</b><small>${RUB(e.rate)} за единицу</small></div><div><label>Количество</label><input id="${esc(id)}" data-extra-id="${esc(e.id)}" type="number" min="0" step="1" value="0" inputmode="numeric"></div></div></div>`;
-   }
-   return `<div class="dynamic-extra"><div class="dynamic-extra-row"><div><b>${esc(e.name)}</b><small>Доплата ${e.rate>=0?'+':''}${RUB(e.rate)}</small></div><label class="switch"><input id="${esc(id)}" data-extra-id="${esc(e.id)}" type="checkbox"><span class="slider"></span></label></div></div>`;
- }).join('');
- const mileage=cfg.extras.filter(e=>e.kind==='mileage');
- const mileageHtml=mileage.length?`<div class="auto-extra"><b>Автоматически по пробегу</b><br>${mileage.map(e=>{
-   const base=e.baseId?(cfg.bases.find(b=>b.id===e.baseId)?.name||'выбранный тариф'):'любой тариф';
-   return `${esc(e.name)}: от ${Math.round(e.threshold)} км · ${esc(base)} · ${e.rate>=0?'+':''}${RUB(e.rate)}`;
- }).join('<br>')}</div>`:'';
- box.innerHTML=controls+ mileageHtml;
- box.querySelectorAll('input[data-extra-id]').forEach(el=>{
-   el.addEventListener('input',calculate);el.addEventListener('change',calculate)
- });
-}
-function readShiftValues(){
- const cfg=loadRates(),values={};
- cfg.extras.filter(e=>e.kind!=='mileage').forEach(e=>{
-   const el=$(extraInputId(e));
-   if(!el)return;
-   values[e.id]=e.kind==='toggle'?!!el.checked:(Number(el.value)||0)
- });
- return values
-}
-function getShiftCalculation(){
- return TariffEngine.compute(loadRates(),{
-   baseId:$('weight')?$('weight').value:'',
-   mileage:val('mileage'),
-   values:readShiftValues(),
-   manualExtra:val('manualExtra')
- })
-}
 function calculate(){
- const result=getShiftCalculation();
- $('calcTotal').textContent=RUB(result.total);
- $('breakdown').innerHTML=result.parts.length?result.parts.map(p=>{
-   const sign=p.kind==='base'?'':(p.amount>=0?'+':'');
-   return `${esc(p.name)}: ${sign}${RUB(p.amount)}`
- }).join('<br>'):'Тарифы не выбраны';
- return result.total
+ const r=loadRates(),w=$('weight').value,m=val('mileage'),b=val('balloons'),s=val('racks'),manual=val('manualExtra');
+ let total=Number(r[w])||0; const parts=[`База ${w} т: ${RUB(r[w])}`];
+ if($('noLoader').checked){total+=r.noLoader;parts.push(`Без грузчика: +${RUB(r.noLoader)}`)}
+ if(b){const x=b*r.balloon;total+=x;parts.push(`Баллоны ×${b}: +${RUB(x)}`)}
+ if(s){const x=s*r.rack;total+=x;parts.push(`Стойки ×${s}: +${RUB(x)}`)}
+ if(m>=400 && r.over400?.[w]){const x=Number(r.over400[w])||0;total+=x;parts.push(`Пробег 400+: +${RUB(x)}`)}
+ else if(m>=180 && r.over180?.[w]){const x=Number(r.over180[w])||0;total+=x;parts.push(`Пробег 180+: +${RUB(x)}`)}
+ if($('secondTrip').checked){total+=r.secondTrip;parts.push(`Второй рейс: +${RUB(r.secondTrip)}`)}
+ if(manual){total+=manual;parts.push(`Ручная доплата: ${manual>=0?'+':''}${RUB(manual)}`)}
+ $('calcTotal').textContent=RUB(total);$('breakdown').innerHTML=parts.join('<br>');return total
 }
-['weight','mileage','manualExtra'].forEach(id=>{
- const el=$(id);if(el){el.addEventListener('input',calculate);el.addEventListener('change',calculate)}
+['weight','mileage','noLoader','secondTrip','balloons','racks','manualExtra'].forEach(id=>{
+ $(id).addEventListener('input',calculate);$(id).addEventListener('change',calculate)
 });
 
 function resetForm(){
- $('date').value=todayLocal();
- $('mileage').value='';
- $('manualExtra').value=0;
- $('comment').value='';
- renderShiftTariffs();
- const cfg=loadRates();if($('weight'))$('weight').value=cfg.bases[0]?.id||'';
- calculate()
+ $('date').value=todayLocal();$('weight').value='2-3';$('mileage').value='';$('noLoader').checked=false;$('secondTrip').checked=false;
+ $('balloons').value=0;$('racks').value=0;$('manualExtra').value=0;$('comment').value='';calculate()
 }
 $('saveTrip').onclick=()=>{
- const result=getShiftCalculation(),values=readShiftValues(),base=result.base;
- const trip={
-   id:Date.now(),date:$('date').value||todayLocal(),
-   baseId:base?.id||'',baseLabel:base?.name||'Без базового тарифа',weight:base?.id||'',
-   mileage:val('mileage'),extras:values,extraSummary:result.applied,
-   noLoader:!!values.noLoader,secondTrip:!!values.secondTrip,
-   balloons:Number(values.balloon)||0,racks:Number(values.rack)||0,
-   manualExtra:val('manualExtra'),comment:$('comment').value.trim(),
-   total:result.total,ratesSnapshot:loadRates()
- };
- const trips=loadTrips();trips.push(trip);saveTrips(trips);
- trackUsage('shift_saved',{method:'manual_or_voice',has_extras:result.applied.length>0});
- resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
+ const trip={id:Date.now(),date:$('date').value||todayLocal(),weight:$('weight').value,mileage:val('mileage'),noLoader:$('noLoader').checked,
+ secondTrip:$('secondTrip').checked,balloons:val('balloons'),racks:val('racks'),manualExtra:val('manualExtra'),
+ comment:$('comment').value.trim(),total:calculate(),ratesSnapshot:loadRates()};
+ const a=loadTrips();a.push(trip);saveTrips(a);trackUsage('shift_saved',{method:'manual_or_voice'});resetForm();renderHome();fillMonths();renderCalendar();renderStats();showPage('home');
  setTimeout(()=>alert('Смена сохранена'),100)
 };
 
@@ -273,33 +202,12 @@ function groupByDate(trips){
  const m={};trips.forEach(t=>{m[t.date]=(m[t.date]||0)+(Number(t.total)||0)});return m
 }
 
-function tripBaseLabel(t){
- if(t&&t.baseLabel)return String(t.baseLabel);
- const legacy={'2-3':'до 3 т','3-4':'3–4 т','4-5':'4–5 т'};
- return legacy[t&&t.weight]||String((t&&t.weight)||'Без базового тарифа')
-}
-function tripExtrasList(t){
- if(Array.isArray(t&&t.extraSummary))return t.extraSummary.filter(x=>x&&x.name).map(x=>String(x.name));
- const out=[];
- if(t&&t.noLoader)out.push('Без грузчика');
- if(t&&t.secondTrip)out.push('Второй рейс');
- if(Number(t&&t.balloons)>0)out.push('Баллоны ×'+Number(t.balloons));
- if(Number(t&&t.racks)>0)out.push('Стойки ×'+Number(t.racks));
- return out
-}
-function tripHasExtras(t){
- return tripExtrasList(t).length>0||Number(t&&t.manualExtra)!==0
-}
-
 function renderHome(){
- const all=loadTrips(),cur=all.filter(t=>monthKey(t.date)===currentMonthKey()),today=all.filter(t=>t.date===todayLocal());
- const sum=cur.reduce((a,t)=>a+(+t.total||0),0),todaySum=today.reduce((a,t)=>a+(+t.total||0),0);
+ const all=loadTrips(), cur=all.filter(t=>monthKey(t.date)===currentMonthKey()), today=all.filter(t=>t.date===todayLocal());
+ const sum=cur.reduce((a,t)=>a+(+t.total||0),0), todaySum=today.reduce((a,t)=>a+(+t.total||0),0);
  $('monthTotal').textContent=RUB(sum);$('todayTotal').textContent=RUB(todaySum);$('monthCount').textContent=cur.length;$('avgShift').textContent=RUB(cur.length?sum/cur.length:0);
  const rec=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date))||b.id-a.id).slice(0,4);
- $('recentList').innerHTML=rec.length?rec.map(t=>{
-   const extras=tripExtrasList(t).map(esc),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
-   return `<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${esc(tripBaseLabel(t))}</div><div class="list-meta">${meta}</div></div><div class="amount">${RUB(t.total)}</div></div>`
- }).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
+ $('recentList').innerHTML=rec.length?rec.map(t=>`<div class="list-item"><div><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${esc(t.comment||'без комментария')}</div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Пока нет сохранённых смен</div>';
  drawChart($('miniChart'),dailySeries(7),'7 дней')
 }
 
@@ -371,11 +279,8 @@ function fillMonths(){
 function renderHistory(){
  const mk=$('historyMonth').value||currentMonthKey(),q=($('historySearch').value||'').toLowerCase().trim();
  let a=loadTrips().filter(t=>monthKey(t.date)===mk).sort((x,y)=>String(y.date).localeCompare(String(x.date))||y.id-x.id);
- if(q)a=a.filter(t=>`${t.date} ${t.comment||''} ${tripBaseLabel(t)} ${tripExtrasList(t).join(' ')}`.toLowerCase().includes(q));
- $('historyList').innerHTML=a.length?a.map(t=>{
-   const extras=tripExtrasList(t),meta=[t.mileage?Number(t.mileage)+' км':'',...extras,esc(t.comment||'без комментария')].filter(Boolean).join(' · ');
-   return `<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${esc(tripBaseLabel(t))}</div><div class="list-meta">${meta}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`
- }).join(''):'<div class="empty">Ничего не найдено</div>'
+ if(q)a=a.filter(t=>`${t.date} ${t.comment||''} ${t.weight}`.toLowerCase().includes(q));
+ $('historyList').innerHTML=a.length?a.map(t=>`<div class="list-item"><div style="flex:1"><div class="list-title">${new Date(t.date+'T12:00:00').toLocaleDateString('ru-RU')} · ${t.weight} т</div><div class="list-meta">${t.mileage?`${t.mileage} км · `:''}${t.noLoader?'без грузчика · ':''}${t.secondTrip?'второй рейс · ':''}${esc(t.comment||'без комментария')}</div><div style="margin-top:7px"><button class="danger" onclick="deleteTrip(${t.id})">Удалить</button></div></div><div class="amount">${RUB(t.total)}</div></div>`).join(''):'<div class="empty">Ничего не найдено</div>'
 }
 $('historyMonth').onchange=renderHistory;$('historySearch').oninput=renderHistory;
 window.deleteTrip=id=>{if(!confirm('Удалить эту смену?'))return;saveTrips(loadTrips().filter(t=>t.id!==id));trackUsage('shift_deleted');renderHome();fillMonths();renderHistory();renderCalendar();renderStats()};
@@ -410,7 +315,7 @@ function renderStats(){
  const periodTrips=loadTrips().filter(t=>t.date>=start&&t.date<=end);
  const by=groupByDate(periodTrips),best=Math.max(0,...Object.values(by));
  $('bestDay').textContent=RUB(best);
- $('noLoaderCount').textContent=periodTrips.filter(tripHasExtras).length;
+ $('noLoaderCount').textContent=periodTrips.filter(t=>t.noLoader).length;
  $('allCount').textContent=periodTrips.length;
  const miles=periodTrips.filter(t=>+t.mileage>0);
  $('avgMileage').textContent=(miles.length?Math.round(miles.reduce((a,t)=>a+(+t.mileage||0),0)/miles.length):0)+' км'
@@ -426,93 +331,10 @@ document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>{
 $('statsPrev').onclick=()=>{statsOffsetDays+=statsDays;trackUsage('stats_period_navigated',{direction:'previous',days:statsDays});renderStats()};
 $('statsNext').onclick=()=>{statsOffsetDays=Math.max(0,statsOffsetDays-statsDays);trackUsage('stats_period_navigated',{direction:'next',days:statsDays});renderStats()};
 
-let rateEditorConfig=TariffEngine.clone(loadRates());
-function newTariffId(prefix){
- return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7)
-}
-function renderRateEditor(){
- const baseBox=$('baseRatesList'),extraBox=$('extraRatesList');
- if(baseBox){
-   baseBox.innerHTML=rateEditorConfig.bases.length?rateEditorConfig.bases.map((b,i)=>`
-     <div class="tariff-editor">
-       <div class="tariff-editor-top">
-         <div><label>Название</label><input data-base-name="${i}" maxlength="80" value="${esc(b.name)}" placeholder="Например, до 3 т"></div>
-         <div><label>Сумма, ₽</label><input data-base-rate="${i}" type="number" min="0" step="1" value="${Number(b.rate)||0}"></div>
-         <button class="tariff-remove" data-remove-base="${i}" aria-label="Удалить">×</button>
-       </div>
-     </div>`).join(''):'<div class="empty-editor">Базовых тарифов нет. Смена будет считаться только по доплатам.</div>';
- }
- if(extraBox){
-   const baseOptions='<option value="">Любой базовый тариф</option>'+rateEditorConfig.bases.map(b=>`<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
-   extraBox.innerHTML=rateEditorConfig.extras.length?rateEditorConfig.extras.map((e,i)=>`
-     <div class="tariff-editor">
-       <div class="tariff-editor-top">
-         <div><label>Название</label><input data-extra-name="${i}" maxlength="80" value="${esc(e.name)}" placeholder="Например, Без грузчика"></div>
-         <div><label>Сумма, ₽</label><input data-extra-rate="${i}" type="number" step="1" value="${Number(e.rate)||0}"></div>
-         <button class="tariff-remove" data-remove-extra="${i}" aria-label="Удалить">×</button>
-       </div>
-       <div class="tariff-editor-grid">
-         <div><label>Как считать</label>
-           <select data-extra-kind="${i}">
-             <option value="toggle" ${e.kind==='toggle'?'selected':''}>Флажок · разовая доплата</option>
-             <option value="quantity" ${e.kind==='quantity'?'selected':''}>Количество × тариф</option>
-             <option value="mileage" ${e.kind==='mileage'?'selected':''}>Автоматически по пробегу</option>
-           </select>
-         </div>
-         ${e.kind==='mileage'?`<div><label>От какого пробега, км</label><input data-extra-threshold="${i}" type="number" min="0" step="1" value="${Number(e.threshold)||0}"></div>
-         <div><label>Для какого тарифа</label><select data-extra-base="${i}">${baseOptions}</select></div>`:''}
-       </div>
-       <div class="tariff-kind-hint">${e.kind==='toggle'?'В смене появится переключатель.':e.kind==='quantity'?'В смене появится поле количества.':'Доплата включится сама при достижении пробега.'}</div>
-     </div>`).join(''):'<div class="empty-editor">Доплат пока нет. Добавьте только те, которыми пользуетесь.</div>';
-   rateEditorConfig.extras.forEach((e,i)=>{
-     if(e.kind==='mileage'){
-       const el=extraBox.querySelector(`[data-extra-base="${i}"]`);
-       if(el)el.value=e.baseId||''
-     }
-   })
- }
-
- document.querySelectorAll('[data-base-name]').forEach(el=>el.oninput=()=>{const i=+el.dataset.baseName;if(rateEditorConfig.bases[i])rateEditorConfig.bases[i].name=el.value});
- document.querySelectorAll('[data-base-rate]').forEach(el=>el.oninput=()=>{const i=+el.dataset.baseRate;if(rateEditorConfig.bases[i])rateEditorConfig.bases[i].rate=Math.max(0,Number(el.value)||0)});
- document.querySelectorAll('[data-remove-base]').forEach(el=>el.onclick=()=>{
-   const i=+el.dataset.removeBase,removed=rateEditorConfig.bases[i];if(!removed)return;
-   rateEditorConfig.bases.splice(i,1);
-   rateEditorConfig.extras=rateEditorConfig.extras.filter(x=>x.baseId!==removed.id);
-   renderRateEditor()
- });
- document.querySelectorAll('[data-extra-name]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraName;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].name=el.value});
- document.querySelectorAll('[data-extra-rate]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraRate;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].rate=Number(el.value)||0});
- document.querySelectorAll('[data-extra-kind]').forEach(el=>el.onchange=()=>{
-   const i=+el.dataset.extraKind,e=rateEditorConfig.extras[i];if(!e)return;
-   e.kind=el.value;
-   if(e.kind==='mileage'){e.threshold=Number(e.threshold)||180;e.baseId=e.baseId||''}else{delete e.threshold;delete e.baseId}
-   renderRateEditor()
- });
- document.querySelectorAll('[data-extra-threshold]').forEach(el=>el.oninput=()=>{const i=+el.dataset.extraThreshold;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].threshold=Math.max(0,Number(el.value)||0)});
- document.querySelectorAll('[data-extra-base]').forEach(el=>el.onchange=()=>{const i=+el.dataset.extraBase;if(rateEditorConfig.extras[i])rateEditorConfig.extras[i].baseId=el.value});
- document.querySelectorAll('[data-remove-extra]').forEach(el=>el.onclick=()=>{const i=+el.dataset.removeExtra;if(rateEditorConfig.extras[i])rateEditorConfig.extras.splice(i,1);renderRateEditor()});
-}
 function populateRates(){
- rateEditorConfig=TariffEngine.clone(loadRates());
- renderRateEditor()
+ const r=loadRates();$('rate23').value=r['2-3'];$('rate34').value=r['3-4'];$('rate45').value=r['4-5'];$('rateNoLoader').value=r.noLoader;$('rateBalloon').value=r.balloon;$('rateRack').value=r.rack;$('rate180_23').value=r.over180['2-3'];$('rate400_23').value=r.over400['2-3'];$('rate180_34').value=r.over180['3-4'];$('rate400_34').value=r.over400['3-4'];$('rate180_45').value=r.over180['4-5'];$('rate400_45').value=r.over400['4-5'];$('rateSecond').value=r.secondTrip
 }
-$('addBaseRate').onclick=()=>{
- rateEditorConfig.bases.push({id:newTariffId('base'),name:'Новый тариф',rate:0});
- renderRateEditor()
-};
-$('addExtraRate').onclick=()=>{
- rateEditorConfig.extras.push({id:newTariffId('extra'),name:'Новая доплата',kind:'toggle',rate:0});
- renderRateEditor()
-};
-$('saveRates').onclick=()=>{
- rateEditorConfig=TariffEngine.normalizeConfig(rateEditorConfig);
- saveRatesObj(rateEditorConfig);
- renderShiftTariffs();
- calculate();
- populateRates();
- trackUsage('rates_saved',{base_count:rateEditorConfig.bases.length,extra_count:rateEditorConfig.extras.length});
- alert('Тарифы сохранены')
-};
+$('saveRates').onclick=()=>{saveRatesObj({"2-3":val('rate23'),"3-4":val('rate34'),"4-5":val('rate45'),noLoader:val('rateNoLoader'),balloon:val('rateBalloon'),rack:val('rateRack'),over180:{"2-3":val('rate180_23'),"3-4":val('rate180_34'),"4-5":val('rate180_45')},over400:{"2-3":val('rate400_23'),"3-4":val('rate400_34'),"4-5":val('rate400_45')},secondTrip:val('rateSecond')});trackUsage('rates_saved');calculate();alert('Тарифы сохранены')};
 
 function browserSaveText(filename,mime,content){
  const blob=new Blob([content],{type:mime}),a=document.createElement('a');
@@ -529,20 +351,19 @@ function saveTextFile(filename,mime,content){
  browserSaveText(filename,mime,content);return false
 }
 $('exportCsv').onclick=()=>{
- const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Тариф','Пробег','Доплаты','Доплата вручную','Комментарий','Итого'];
- const csv=[head,...rows.map(t=>[t.date,tripBaseLabel(t),t.mileage||0,tripExtrasList(t).join(', '),t.manualExtra||0,t.comment||'',t.total||0])]
-   .map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
+ const m=$('historyMonth').value,rows=loadTrips().filter(t=>monthKey(t.date)===m),head=['Дата','Вес','Пробег','Без грузчика','Второй рейс','Баллоны','Стойки','Доплата','Комментарий','Итого'];
+ const csv=[head,...rows.map(t=>[t.date,t.weight,t.mileage,t.noLoader?'Да':'Нет',t.secondTrip?'Да':'Нет',t.balloons,t.racks,t.manualExtra,t.comment,t.total])].map(r=>r.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(';')).join('\n');
  saveTextFile(`зарплата_${m}.csv`,'text/csv;charset=utf-8','\ufeff'+csv);trackUsage('csv_exported')
 };
 $('backup').onclick=()=>{
- const d={version:6,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
+ const d={version:5,savedAt:new Date().toISOString(),rates:loadRates(),trips:loadTrips()};
  saveTextFile('зарплата_водителя_backup.json','application/json',JSON.stringify(d,null,2));trackUsage('backup_exported')
 };
 $('restoreBtn').onclick=()=>$('restoreFile').click();
-$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderShiftTariffs();calculate();renderHome();fillMonths();renderCalendar();renderStats();trackUsage('backup_restored');alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
+$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rates)saveRatesObj(d.rates);if(Array.isArray(d.trips))saveTrips(d.trips);populateRates();renderHome();fillMonths();renderCalendar();renderStats();trackUsage('backup_restored');alert('Данные восстановлены')}catch{alert('Не удалось прочитать файл')}e.target.value=''};
 
 window.addEventListener('resize',()=>{if($('home').classList.contains('active'))renderHome();if($('stats').classList.contains('active'))renderStats()});
-renderShiftTariffs();populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();initAnalyticsUi();setTimeout(persistNativeBackup,500);
+populateRates();calculate();renderHome();fillMonths();renderCalendar();renderStats();initAnalyticsUi();setTimeout(persistNativeBackup,500);
 
 /* Voice input 1.3.0 */
 const RU_NUMBERS={
@@ -612,24 +433,6 @@ function startVoiceEntry(){
     showVoiceToast('Голосовой ввод','Не удалось открыть системный голосовой ввод.');
   }
 }
-function selectBaseIfExists(id){
-  const s=$('weight');if(!s)return false;
-  const exists=Array.from(s.options||[]).some(o=>o.value===id);
-  if(exists){s.value=id;return true}
-  return false
-}
-function setKnownExtraValue(id,value){
-  const e=loadRates().extras.find(x=>x.id===id);if(!e||e.kind==='mileage')return false;
-  const el=$(extraInputId(e));if(!el)return false;
-  if(e.kind==='toggle')el.checked=!!value;else el.value=Math.max(0,Number(value)||0);
-  return true
-}
-function getKnownExtraValue(id){
-  const e=loadRates().extras.find(x=>x.id===id);if(!e||e.kind==='mileage')return 0;
-  const el=$(extraInputId(e));if(!el)return 0;
-  return e.kind==='toggle'?!!el.checked:(Number(el.value)||0)
-}
-
 function parseVoiceShift(raw){
   const t=voiceNormalize(raw);
   if(!t)return {changed:false,save:false,summary:'Пустая фраза'};
@@ -656,11 +459,11 @@ function parseVoiceShift(raw){
   else if(t.includes('сегодня')){$('date').value=todayLocal();changed=true}
 
   if(/(?:^|\s)(?:4\s*[- ]\s*5|от\s+четырех\s+до\s+пяти|четыре\s+пять)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
-    if(selectBaseIfExists('4-5'))changed=true
+    $('weight').value='4-5';changed=true
   }else if(/(?:^|\s)(?:3\s*[- ]\s*4|от\s+трех\s+до\s+четырех|три\s+четыре)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
-    if(selectBaseIfExists('3-4'))changed=true
+    $('weight').value='3-4';changed=true
   }else if(/(?:^|\s)(?:до\s*(?:3|трех)|до\s+трех)(?:\s*(?:т|тонн|тонны))?(?:\s|$|[,.])/.test(t)){
-    if(selectBaseIfExists('2-3'))changed=true
+    $('weight').value='2-3';changed=true
   }
 
   let mm=t.match(/(?:пробег|километраж|проехал(?:а)?)\s+(.+?)(?=\s+(?:без\s+грузчика|с\s+грузчиком|второй\s+рейс|2(?:-?й)?\s+рейс|баллон\w*|стойк\w*|доплат\w*|комментар\w*|заметка)|$)/);
@@ -671,16 +474,16 @@ function parseVoiceShift(raw){
   }
   if(mileage!==null&&mileage>=0){$('mileage').value=mileage;changed=true}
 
-  if(t.includes('без грузчика')){if(setKnownExtraValue('noLoader',true))changed=true}
-  else if(t.includes('с грузчиком')){if(setKnownExtraValue('noLoader',false))changed=true}
+  if(t.includes('без грузчика')){$('noLoader').checked=true;changed=true}
+  else if(t.includes('с грузчиком')){$('noLoader').checked=false;changed=true}
 
-  if(/(?:^|\s)(?:второй|2(?:-?й)?|два)\s+рейс(?:а)?(?:\s|$|[,.])/.test(t)){if(setKnownExtraValue('secondTrip',true))changed=true}
-  else if(/(?:^|\s)один\s+рейс(?:\s|$|[,.])/.test(t)){if(setKnownExtraValue('secondTrip',false))changed=true}
+  if(/(?:^|\s)(?:второй|2(?:-?й)?|два)\s+рейс(?:а)?(?:\s|$|[,.])/.test(t)){$('secondTrip').checked=true;changed=true}
+  else if(/(?:^|\s)один\s+рейс(?:\s|$|[,.])/.test(t)){$('secondTrip').checked=false;changed=true}
 
   const balloons=extractUnitCount(t,'баллон(?:а|ов|ы)?');
-  if(balloons!==null){if(setKnownExtraValue('balloon',balloons))changed=true}
+  if(balloons!==null){$('balloons').value=balloons;changed=true}
   const racks=extractUnitCount(t,'(?:стойк(?:а|и|у|ой)?|стоек)');
-  if(racks!==null){if(setKnownExtraValue('rack',racks))changed=true}
+  if(racks!==null){$('racks').value=racks;changed=true}
 
   const extraMatch=t.match(/(?:доплата|доплату|доплатить)\s+(.+?)(?=\s+(?:комментар|заметка|баллон|стойк|рейс|без\s+грузчика|с\s+грузчиком)|$)/);
   if(extraMatch){
@@ -697,13 +500,12 @@ function parseVoiceShift(raw){
     return {changed:true,save:true,summary:'Распознано. Смена будет сохранена. Итого '+RUB(total)}
   }
 
-  const selected=$('weight')&&$('weight').selectedIndex>=0?$('weight').options[$('weight').selectedIndex]?.text:'Без базового тарифа';
-  const parts=[selected||'Без базового тарифа'];
+  const parts=[$('weight').options[$('weight').selectedIndex].text];
   if(val('mileage'))parts.push(val('mileage')+' км');
-  if(getKnownExtraValue('noLoader'))parts.push('без грузчика');
-  if(getKnownExtraValue('secondTrip'))parts.push('второй рейс');
-  if(getKnownExtraValue('balloon'))parts.push('баллоны: '+getKnownExtraValue('balloon'));
-  if(getKnownExtraValue('rack'))parts.push('стойки: '+getKnownExtraValue('rack'));
+  if($('noLoader').checked)parts.push('без грузчика');
+  if($('secondTrip').checked)parts.push('второй рейс');
+  if(val('balloons'))parts.push('баллоны: '+val('balloons'));
+  if(val('racks'))parts.push('стойки: '+val('racks'));
   return {changed,save:false,summary:changed?parts.join(' · ')+' · Итого '+RUB(total):'Не удалось найти параметры смены'}
 }
 
