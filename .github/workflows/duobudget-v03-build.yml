@@ -33,7 +33,6 @@ jobs:
             duobudget-ci/chunk_08 \
             > /tmp/duobudget-source.b64
           base64 --decode /tmp/duobudget-source.b64 > /tmp/DuoBudget-v0.3-source.zip
-          sha256sum /tmp/DuoBudget-v0.3-source.zip
           mkdir -p /tmp/duobudget-src
           unzip -q /tmp/DuoBudget-v0.3-source.zip -d /tmp/duobudget-src
           test -f /tmp/duobudget-src/DuoBudget/settings.gradle.kts
@@ -47,13 +46,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK 37
+      - name: Install Android SDK 36
         shell: bash
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --channel=3 "platform-tools" "platforms;android-37" "build-tools;36.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle 9.6.0
         uses: gradle/actions/setup-gradle@v4
