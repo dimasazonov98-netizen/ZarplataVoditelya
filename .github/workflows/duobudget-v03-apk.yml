@@ -23,14 +23,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
-      - name: Reconstruct source
+      - name: Verify and extract source
         shell: bash
         run: |
-          cat duobudget-build/part-00.b64 duobudget-build/part-01.b64 duobudget-build/part-02.b64 duobudget-build/part-03.b64 > /tmp/duobudget.b64
-          base64 -d /tmp/duobudget.b64 > /tmp/duobudget.zip
-          unzip -t /tmp/duobudget.zip
+          unzip -t duobudget-build/source.zip
           mkdir -p /tmp/duobudget-src
-          unzip -q /tmp/duobudget.zip -d /tmp/duobudget-src
+          unzip -q duobudget-build/source.zip -d /tmp/duobudget-src
       - name: Build debug APK
         working-directory: /tmp/duobudget-src/DuoBudget
         run: gradle :app:assembleDebug --stacktrace --no-daemon
