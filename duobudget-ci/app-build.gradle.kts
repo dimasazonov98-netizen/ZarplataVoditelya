@@ -11,7 +11,7 @@ val firebaseProjectId = providers.gradleProperty("FIREBASE_PROJECT_ID").orNull ?
 
 android {
     namespace = "com.duobudget.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.duobudget.app"
