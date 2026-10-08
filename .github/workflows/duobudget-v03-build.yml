@@ -19,8 +19,21 @@ jobs:
       - name: Reconstruct DuoBudget source archive
         shell: bash
         run: |
-          cat duobudget-ci/chunk_* > /tmp/duobudget-source.b64
+          cat \
+            duobudget-ci/chunk_00 \
+            duobudget-ci/chunk_01 \
+            duobudget-ci/chunk_02 \
+            duobudget-ci/chunk_03 \
+            duobudget-ci/chunk_04 \
+            duobudget-ci/chunk_05 \
+            duobudget-ci/c6_0 \
+            duobudget-ci/c6_1 \
+            duobudget-ci/c7_0 \
+            duobudget-ci/c7_1 \
+            duobudget-ci/chunk_08 \
+            > /tmp/duobudget-source.b64
           base64 --decode /tmp/duobudget-source.b64 > /tmp/DuoBudget-v0.3-source.zip
+          sha256sum /tmp/DuoBudget-v0.3-source.zip
           mkdir -p /tmp/duobudget-src
           unzip -q /tmp/DuoBudget-v0.3-source.zip -d /tmp/duobudget-src
           test -f /tmp/duobudget-src/DuoBudget/settings.gradle.kts
@@ -53,11 +66,13 @@ jobs:
           DUOBUDGET_FIREBASE_PROJECT_ID: ''
         run: gradle --no-daemon lintDebug assembleDebug --stacktrace
 
-      - name: Verify APK
+      - name: Verify APK signature and checksum
         shell: bash
         run: |
-          test -s /tmp/duobudget-src/DuoBudget/app/build/outputs/apk/debug/app-debug.apk
-          sha256sum /tmp/duobudget-src/DuoBudget/app/build/outputs/apk/debug/app-debug.apk | tee /tmp/DuoBudget-v0.3-debug.apk.sha256
+          APK=/tmp/duobudget-src/DuoBudget/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          sha256sum "$APK" | tee /tmp/DuoBudget-v0.3-debug.apk.sha256
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
