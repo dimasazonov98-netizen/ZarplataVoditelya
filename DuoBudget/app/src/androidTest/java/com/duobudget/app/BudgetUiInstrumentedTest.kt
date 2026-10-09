@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.ui.test.*
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
 import com.duobudget.app.ui.DuoBudgetApp
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -32,8 +33,12 @@ class BudgetUiInstrumentedTest {
         runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()}
         return n
     }
-    private fun click(text:String){node(text).performClick();rule.waitForIdle()}
-    private fun fill(label:String,value:String){node(label).performTextReplacement(value)}
+    private fun click(text:String){
+        val n=node(text)
+        rule.waitUntil(10000){runCatching{n.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Disabled)==null}.getOrDefault(false)}
+        n.assertIsEnabled().performClick();rule.waitForIdle()
+    }
+    private fun fill(label:String,value:String){node(label).performTextReplacement(value);rule.waitForIdle();node(label).assertTextContains(value)}
     private fun shot(name:String){
         rule.runOnUiThread{
             val view=rule.activity.window.decorView
@@ -76,8 +81,8 @@ class BudgetUiInstrumentedTest {
         fill("Сумма, ₽","500,50")
         fill("Заметка","Магазин — тест")
         click("Сохранить операцию");idle()
-        assertEquals(49950L,BudgetEngine.available(vm.data.value))
         shot("01-home")
+        assertEquals("message=${vm.message.value}; transactions=${vm.data.value.transactions.map{it.type to it.amount}}",49950L,BudgetEngine.available(vm.data.value))
         click("Операции")
         rule.onAllNodesWithText("Изменить")[0].performClick();rule.waitForIdle()
         fill("Сумма, ₽","250,75")
