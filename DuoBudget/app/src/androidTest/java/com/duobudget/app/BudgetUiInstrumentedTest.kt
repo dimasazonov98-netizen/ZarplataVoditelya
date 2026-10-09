@@ -16,7 +16,6 @@ import org.junit.Test
 import org.junit.Assert.*
 import org.junit.runner.RunWith
 import java.io.File
-import java.io.FileInputStream
 
 @RunWith(AndroidJUnit4::class)
 class BudgetUiInstrumentedTest {
@@ -42,10 +41,16 @@ class BudgetUiInstrumentedTest {
             bitmap.recycle()
         }
         // Keep synthetic QA images outside app storage: UTP uninstalls the test app.
-        val command="sh -c 'mkdir -p /sdcard/Download/DuoBudgetQA && run-as com.duobudget.family cat files/"+name+".png > /sdcard/Download/DuoBudgetQA/"+name+".png'"
-        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use{fd->
-            FileInputStream(fd.fileDescriptor).use{it.readBytes()}
+        // executeShellCommand tokenizes arguments without interpreting shell quotes.
+        // Keep the shell program in one argument and expand separators inside sh.
+        val gap="\${IFS}"
+        val command="sh -c mkdir"+gap+"-p"+gap+"/sdcard/Download/DuoBudgetQA&&run-as"+gap+"com.duobudget.family"+gap+"cat"+gap+"files/"+name+".png>/sdcard/Download/DuoBudgetQA/"+name+".png"
+        fun shell(cmd:String):ByteArray=InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(cmd).let{fd->
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(fd).use{it.readBytes()}
         }
+        shell(command)
+        val copied=shell("cat /sdcard/Download/DuoBudgetQA/"+name+".png")
+        assertTrue("QA image must survive test cleanup",copied.take(8).toByteArray().contentEquals(byteArrayOf(0x89.toByte(),80,78,71,13,10,26,10)))
     }
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){
         rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
