@@ -55,7 +55,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
         if(_busy.value)return
         _busy.value=true
         viewModelScope.launch {
-            runCatching {withContext(Dispatchers.IO){block();refresh()}}.onSuccess {onSuccess?.invoke();retrySync()}.onFailure {_message.value=it.message?:"Не удалось сохранить. Данные не изменены."}
+            runCatching {withContext(Dispatchers.IO){block()};refresh()}.onSuccess {onSuccess?.invoke();retrySync()}.onFailure {_message.value=it.message?:"Не удалось сохранить. Данные не изменены."}
             _busy.value=false
         }
     }
@@ -149,8 +149,9 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
                     withContext(Dispatchers.IO){
                         val s=store!!;val session=s.session()?:return@withContext
                         try {cloud.disconnect(session)}catch(e:BudgetCloudService.CloudException){if(e.status!=401)throw e}
-                        s.detach();refresh()
+                        s.detach()
                     }
+                    refresh()
                     _syncState.value=SyncState.DISABLED;_syncMessage.value="Копия бюджета осталась на этом телефоне"
                 }
             }catch(e:Exception){_message.value=e.message?:"Не удалось отключить телефон"}
@@ -166,9 +167,8 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
         try {
             val bytes=store!!.backup(password)
             app.contentResolver.openOutputStream(uri,"wt")?.use{it.write(bytes)}?:error("Не удалось записать файл")
-            _message.value="Резервная копия сохранена. Пароль понадобится для восстановления."
         } finally {password.fill('\u0000')}
-    })
+    },{_message.value="Резервная копия сохранена. Пароль понадобится для восстановления."})
     fun restoreBackup(uri:Uri,password:CharArray)=action({
         try {
             val bytes=readFile(uri)
@@ -179,12 +179,11 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
                 val name="duobudget.recovered."+UUID.randomUUID()+".vault"
                 val fresh=LocalStore(app,name,false);fresh.restore(bytes,password)
                 require(preferences.edit().putString("name",name).commit()){"Не удалось сохранить настройку восстановления"}
-                store=fresh;_storageError.value=""
+                store=fresh
             } else store!!.restore(bytes,password)
-            _message.value="Резервная копия восстановлена";_syncState.value=SyncState.DISABLED
         } finally {password.fill('\u0000')}
-    })
-    fun reset()=action({store!!.reset();_message.value="Локальные данные удалены"})
+    },{_storageError.value="";_message.value="Резервная копия восстановлена";_syncState.value=SyncState.DISABLED})
+    fun reset()=action({store!!.reset()},{_message.value="Локальные данные удалены"})
     fun exportCsv(uri:Uri,month:YearMonth)=action({
         fun cell(s:String):String {val safe=if(s.trimStart().firstOrNull() in listOf('=','+','-','@','\t','\r'))"'"+s else s;return "\""+safe.replace("\"","\"\"")+"\""}
         val d=store!!.data()
@@ -194,8 +193,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
             rows.forEach {t->append(listOf(t.createdAt.toString(),t.type.name,Money.edit(t.amount),t.category,d.accounts.firstOrNull{it.id==t.accountId}?.name.orEmpty(),d.accounts.firstOrNull{it.id==t.targetAccountId}?.name.orEmpty(),payerName(t.payer),t.note).joinToString(";"){cell(it)});append("\r\n")}
         }
         app.contentResolver.openOutputStream(uri,"wt")?.use{it.write(csv.toByteArray(Charsets.UTF_8))}?:error("Не удалось записать файл")
-        _message.value="Отчёт за "+month+" сохранён"
-    })
+    },{_message.value="Отчёт за "+month+" сохранён"})
     override fun onCleared(){poll?.cancel();super.onCleared()}
 }
 
