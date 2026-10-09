@@ -48,8 +48,11 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            cd DuoBudget
-            gradle --no-daemon connectedDebugAndroidTest --stacktrace
+            gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
+            mkdir -p final-out/screens
+            adb exec-out run-as com.duobudget.family cat files/01-home.png > final-out/screens/01-home.png
+            adb exec-out run-as com.duobudget.family cat files/02-goal.png > final-out/screens/02-goal.png
+            adb exec-out run-as com.duobudget.family cat files/03-final-home.png > final-out/screens/03-final-home.png
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
@@ -65,9 +68,6 @@ jobs:
           cp -R DuoBudget/app/build/reports final-out/reports || true
           cp -R DuoBudget/app/build/test-results final-out/test-results || true
           cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
-          for name in 01-home 02-goal 03-final-home; do
-            adb exec-out run-as com.duobudget.family cat "files/$name.png" > "final-out/screens/$name.png" || true
-          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
