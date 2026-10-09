@@ -6,6 +6,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.duobudget.app.model.*
@@ -15,6 +16,7 @@ import org.junit.Test
 import org.junit.Assert.*
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.FileInputStream
 
 @RunWith(AndroidJUnit4::class)
 class BudgetUiInstrumentedTest {
@@ -38,6 +40,11 @@ class BudgetUiInstrumentedTest {
             view.draw(Canvas(bitmap))
             File(rule.activity.filesDir,name+".png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
             bitmap.recycle()
+        }
+        // Keep synthetic QA images outside app storage: UTP uninstalls the test app.
+        val command="sh -c 'mkdir -p /sdcard/Download/DuoBudgetQA && run-as com.duobudget.family cat files/"+name+".png > /sdcard/Download/DuoBudgetQA/"+name+".png'"
+        InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use{fd->
+            FileInputStream(fd.fileDescriptor).use{it.readBytes()}
         }
     }
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){

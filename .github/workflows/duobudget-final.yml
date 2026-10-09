@@ -50,9 +50,9 @@ jobs:
           script: |
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
             mkdir -p final-out/screens
-            adb exec-out run-as com.duobudget.family cat files/01-home.png > final-out/screens/01-home.png
-            adb exec-out run-as com.duobudget.family cat files/02-goal.png > final-out/screens/02-goal.png
-            adb exec-out run-as com.duobudget.family cat files/03-final-home.png > final-out/screens/03-final-home.png
+            adb exec-out cat /sdcard/Download/DuoBudgetQA/01-home.png > final-out/screens/01-home.png
+            adb exec-out cat /sdcard/Download/DuoBudgetQA/02-goal.png > final-out/screens/02-goal.png
+            adb exec-out cat /sdcard/Download/DuoBudgetQA/03-final-home.png > final-out/screens/03-final-home.png
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
@@ -62,9 +62,6 @@ jobs:
             cp DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk final-out/
           fi
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" final-out/
-          cp "$ANDROID_HOME/build-tools/36.0.0/aapt" final-out/
-          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" final-out/
-          if [ -d "$ANDROID_HOME/build-tools/36.0.0/lib64" ]; then cp -R "$ANDROID_HOME/build-tools/36.0.0/lib64" final-out/; fi
           cp -R DuoBudget/app/build/reports final-out/reports || true
           cp -R DuoBudget/app/build/test-results final-out/test-results || true
           cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
