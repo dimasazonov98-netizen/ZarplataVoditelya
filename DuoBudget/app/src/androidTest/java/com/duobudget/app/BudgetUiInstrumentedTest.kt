@@ -36,7 +36,12 @@ class BudgetUiInstrumentedTest {
         return n
     }
     private fun click(text:String){
-        androidx.test.espresso.Espresso.closeSoftKeyboard();rule.waitForIdle()
+        rule.runOnUiThread{
+            rule.activity.currentFocus?.clearFocus()
+            val input=rule.activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            input.hideSoftInputFromWindow(rule.activity.window.decorView.windowToken,0)
+        }
+        rule.waitForIdle()
         val n=node(text)
         rule.waitUntil(10000){runCatching{n.assertIsEnabled();true}.getOrDefault(false)}
         n.assertIsEnabled().performClick();rule.waitForIdle()
