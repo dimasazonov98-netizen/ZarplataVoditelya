@@ -6,6 +6,8 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import com.duobudget.app.model.*
 import com.duobudget.app.viewmodel.AppViewModel
 import org.junit.Rule
@@ -85,11 +87,24 @@ class BudgetUiInstrumentedTest {
         click("Сохранить операцию");idle()
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
         assertEquals(10000L,BudgetEngine.balance(vm.data.value,"tbank"))
-        rule.runOnUiThread{rule.activity.startActivity(Intent(rule.activity,MainActivity::class.java).putExtra("openAddExpense",true).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))}
-        rule.waitForIdle();rule.onNodeWithText("Новая операция").assertExists()
-        click("Отмена")
-        shot("03-final-home")
-        assertTrue(rule.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0)
+        val originalActivity=rule.activity
+        val originalIntent=Intent(originalActivity.intent)
+        try {
+            rule.runOnUiThread{originalActivity.startActivity(Intent(originalActivity,MainActivity::class.java).putExtra("openAddExpense",true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))}
+            rule.waitForIdle();rule.onNodeWithText("Новая операция").assertExists()
+            rule.runOnUiThread{
+                val active=ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).filterIsInstance<MainActivity>()
+                assertEquals(1,active.size);assertSame(originalActivity,active.single())
+            }
+            click("Отмена")
+            shot("03-final-home")
+            assertEquals(24925L,BudgetEngine.available(vm.data.value))
+            assertTrue(originalActivity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0)
+        } finally {
+            // ActivityScenario matches lifecycle events against its original launcher intent.
+            // A real onNewIntent replaces it; restore the test fixture before close().
+            rule.runOnUiThread{originalActivity.intent=originalIntent}
+        }
     }
 }
 
