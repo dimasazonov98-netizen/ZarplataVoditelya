@@ -3,6 +3,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.content.Intent
 import androidx.compose.ui.test.*
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
+import com.duobudget.app.ui.DuoBudgetApp
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -45,9 +48,26 @@ class BudgetUiInstrumentedTest {
         parts.forEachIndexed{index,part->android.util.Log.i("DuoBudgetQA","IMAGE|"+name+"|"+index+"|"+parts.size+"|"+part);Thread.sleep(10)}
 
     }
+    @Test fun lockedAppHidesFinancialDialogAndRestoresConfirmation(){
+        rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
+        idle();rule.runOnUiThread{vm.clearMessage()};idle()
+        rule.runOnUiThread{vm.saveTransaction(null,TransactionType.EXPENSE,12575,"Продукты","Конфиденциальная запись","cash","",Payer.ME,java.time.LocalDateTime.now()) {}}
+        idle()
+        val gate=mutableStateOf(true)
+        rule.runOnUiThread{rule.activity.setContent{DuoBudgetApp(unlocked=gate.value,vm=vm)}}
+        rule.waitForIdle();click("Операции");click("Удалить")
+        rule.onNodeWithText("Удалить операцию?").assertExists()
+        rule.runOnUiThread{gate.value=false};rule.waitForIdle()
+        rule.onNodeWithText("Удалить операцию?").assertDoesNotExist()
+        assertFalse(vm.data.value.transactions.single().deleted)
+        rule.runOnUiThread{gate.value=true};rule.waitForIdle()
+        rule.onNodeWithText("Удалить операцию?").assertExists()
+        rule.onNodeWithText("Продукты · 125,75 ₽. Её можно восстановить из корзины.").assertExists()
+        click("Отмена");assertFalse(vm.data.value.transactions.single().deleted)
+    }
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){
         rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
-        idle()
+        idle();rule.runOnUiThread{vm.clearMessage()};idle()
         click("+ Доход")
         fill("Сумма, ₽","1000")
         click("Сохранить операцию");idle()

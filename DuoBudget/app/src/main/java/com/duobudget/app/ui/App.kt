@@ -50,6 +50,21 @@ private val dates=DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(Re
 private fun typeName(t:TransactionType)=when(t){TransactionType.EXPENSE->"Расход";TransactionType.INCOME->"Доход";TransactionType.TRANSFER->"Перевод";TransactionType.REFUND->"Возврат";TransactionType.CASHBACK->"Кэшбэк"}
 private fun syncLabel(s:SyncState)=when(s){SyncState.DISABLED->"На телефоне";SyncState.READY->"Ожидание";SyncState.SYNCING->"Обновление…";SyncState.SYNCED->"Обновлено";SyncState.ERROR->"Нет связи"}
 
+private val LocalBudgetUnlocked=compositionLocalOf{true}
+@Composable private fun AppDialog(
+    onDismissRequest:()->Unit,
+    title:@Composable ()->Unit,
+    text:@Composable ()->Unit,
+    confirmButton:@Composable ()->Unit,
+    dismissButton:(@Composable ()->Unit)?=null
+){
+    // Dialogs have their own Android window; the parent content's alpha cannot hide them.
+    if(LocalBudgetUnlocked.current)androidx.compose.material3.AlertDialog(
+        onDismissRequest=onDismissRequest,title=title,text=text,
+        confirmButton=confirmButton,dismissButton=dismissButton
+    )
+}
+
 @Composable
 fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=viewModel()) {
     val dark by vm.darkTheme.collectAsStateWithLifecycle()
@@ -64,6 +79,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         onDispose{owner.lifecycle.removeObserver(observer);vm.setForeground(false)}
     }
     DuoBudgetTheme(darkTheme=dark){
+        CompositionLocalProvider(LocalBudgetUnlocked provides unlocked){
         if(error.isNotBlank()){
             Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
                 Text("Восстановление бюджета",style=MaterialTheme.typography.headlineSmall)
@@ -101,7 +117,8 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                 }
             }
         }
-        if(message.isNotBlank())AlertDialog(onDismissRequest=vm::clearMessage,title={Text("DuoBudget")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearMessage){Text("Понятно")}})
+        if(message.isNotBlank())AppDialog(onDismissRequest=vm::clearMessage,title={Text("DuoBudget")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearMessage){Text("Понятно")}})
+        }
     }
 }
 @Composable private fun Title(text:String){Text(text,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)}
@@ -183,7 +200,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         if(rows.isEmpty())item{Empty(if(trash)"Здесь нет удалённых операций"else"Операций по этому фильтру пока нет")}
         items(rows,key={it.id}){t->val editable=vm.canEdit(t);TransactionCard(d,t,onEdit=if(editable&&!trash)({onEdit(t.id)})else null,onDelete=if(editable&&!trash)({deleting=t})else null,onRestore=if(editable&&trash)({vm.restoreTransaction(t.id)})else null)}
     }
-    deleting?.let{t->AlertDialog(onDismissRequest={deleting=null},title={Text("Удалить операцию?")},text={Text(t.category+" · "+rub(t.amount)+". Её можно восстановить из корзины.")},confirmButton={TextButton(onClick={vm.deleteTransaction(t.id);deleting=null}){Text("Удалить")}},dismissButton={TextButton(onClick={deleting=null}){Text("Отмена")}})}
+    deleting?.let{t->AppDialog(onDismissRequest={deleting=null},title={Text("Удалить операцию?")},text={Text(t.category+" · "+rub(t.amount)+". Её можно восстановить из корзины.")},confirmButton={TextButton(onClick={vm.deleteTransaction(t.id);deleting=null}){Text("Удалить")}},dismissButton={TextButton(onClick={deleting=null}){Text("Отмена")}})}
 }
 @Composable private fun TransactionForm(vm:AppViewModel,old:MoneyTransaction?,initialType:TransactionType,onDone:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
@@ -273,13 +290,13 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         if(d.goals.isEmpty())item{Empty("Добавь цель: отпуск, машина или подушка безопасности.")}
         items(d.goals,key={it.id}){g->GoalCard(vm,g,d.savings){delete=g}}
     }
-    if(withdraw)AlertDialog(onDismissRequest={withdraw=false},title={Text("Взять из накоплений?")},text={Text(rub(amount?:0)+" снова войдёт в доступные деньги.")},confirmButton={TextButton(onClick={vm.withdrawSavings(amount?:0);value="";withdraw=false}){Text("Подтвердить")}},dismissButton={TextButton(onClick={withdraw=false}){Text("Отмена")}})
+    if(withdraw)AppDialog(onDismissRequest={withdraw=false},title={Text("Взять из накоплений?")},text={Text(rub(amount?:0)+" снова войдёт в доступные деньги.")},confirmButton={TextButton(onClick={vm.withdrawSavings(amount?:0);value="";withdraw=false}){Text("Подтвердить")}},dismissButton={TextButton(onClick={withdraw=false}){Text("Отмена")}})
     if(goalDialog){
         var name by rememberSaveable{mutableStateOf("")};var target by rememberSaveable{mutableStateOf("")};val n=Money.parse(target)
-        AlertDialog(onDismissRequest={goalDialog=false},title={Text("Новая цель")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){OutlinedTextField(name,{name=it.take(60)},label={Text("Название")},singleLine=true);MoneyField(target,{target=it},"Сумма цели, ₽")}},
+        AppDialog(onDismissRequest={goalDialog=false},title={Text("Новая цель")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){OutlinedTextField(name,{name=it.take(60)},label={Text("Название")},singleLine=true);MoneyField(target,{target=it},"Сумма цели, ₽")}},
             confirmButton={TextButton(onClick={vm.createGoal(name,n!!){goalDialog=false}},enabled=!busy&&name.isNotBlank()&&n!=null&&n>0){Text("Создать цель")}},dismissButton={TextButton(onClick={goalDialog=false}){Text("Отмена")}})
     }
-    delete?.let{g->AlertDialog(onDismissRequest={delete=null},title={Text("Удалить цель?")},text={Text(rub(g.currentAmount)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.deleteGoal(g.id);delete=null}){Text("Удалить")}},dismissButton={TextButton(onClick={delete=null}){Text("Отмена")}})}
+    delete?.let{g->AppDialog(onDismissRequest={delete=null},title={Text("Удалить цель?")},text={Text(rub(g.currentAmount)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.deleteGoal(g.id);delete=null}){Text("Удалить")}},dismissButton={TextButton(onClick={delete=null}){Text("Отмена")}})}
 }
 @Composable private fun GoalCard(vm:AppViewModel,g:Goal,savings:Long,onDelete:()->Unit){
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -297,7 +314,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
             TextButton(onClick={returnMoney=true},enabled=!busy&&amount!=null&&amount in 1..g.currentAmount){Text("Вернуть в накопления")}
         }
     }}
-    if(returnMoney)AlertDialog(onDismissRequest={returnMoney=false},title={Text("Вернуть из цели?")},text={Text(rub(amount?:0)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.withdrawGoal(g.id,amount?:0);value="";returnMoney=false}){Text("Вернуть")}},dismissButton={TextButton(onClick={returnMoney=false}){Text("Отмена")}})
+    if(returnMoney)AppDialog(onDismissRequest={returnMoney=false},title={Text("Вернуть из цели?")},text={Text(rub(amount?:0)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.withdrawGoal(g.id,amount?:0);value="";returnMoney=false}){Text("Вернуть")}},dismissButton={TextButton(onClick={returnMoney=false}){Text("Отмена")}})
 }
 @Composable private fun AccountsScreen(vm:AppViewModel,onBack:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
@@ -318,10 +335,10 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         var name by rememberSaveable(current?.id){mutableStateOf(current?.name.orEmpty())}
         var balance by rememberSaveable(current?.id){mutableStateOf(Money.edit(current?.openingBalance?:0))}
         val n=Money.parse(balance)
-        AlertDialog(onDismissRequest={create=false;editing=null},title={Text(if(current==null)"Новый счёт"else"Изменить счёт")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){OutlinedTextField(name,{name=it.take(60)},label={Text("Название")},singleLine=true);MoneyField(balance,{balance=it},"Начальный остаток, ₽",zero=true,negative=true)}},
+        AppDialog(onDismissRequest={create=false;editing=null},title={Text(if(current==null)"Новый счёт"else"Изменить счёт")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){OutlinedTextField(name,{name=it.take(60)},label={Text("Название")},singleLine=true);MoneyField(balance,{balance=it},"Начальный остаток, ₽",zero=true,negative=true)}},
             confirmButton={TextButton(onClick={vm.saveAccount(MoneyAccount(current?.id?:UUID.randomUUID().toString(),name.trim(),n!!,current?.archived?:false)){create=false;editing=null}},enabled=!busy&&name.isNotBlank()&&n!=null){Text("Сохранить счёт")}},dismissButton={TextButton(onClick={create=false;editing=null}){Text("Отмена")}})
     }
-    archive?.let{a->AlertDialog(onDismissRequest={archive=null},title={Text("Убрать счёт в архив?")},text={Text("«"+a.name+"» сохранит остаток и старые операции. Новые операции с ним будут недоступны.")},confirmButton={TextButton(onClick={vm.archiveAccount(a.id,true);archive=null}){Text("В архив")}},dismissButton={TextButton(onClick={archive=null}){Text("Отмена")}})}
+    archive?.let{a->AppDialog(onDismissRequest={archive=null},title={Text("Убрать счёт в архив?")},text={Text("«"+a.name+"» сохранит остаток и старые операции. Новые операции с ним будут недоступны.")},confirmButton={TextButton(onClick={vm.archiveAccount(a.id,true);archive=null}){Text("В архив")}},dismissButton={TextButton(onClick={archive=null}){Text("Отмена")}})}
 }
 @Composable private fun BackupPanel(vm:AppViewModel,recovery:Boolean=false){
     val busy by vm.busy.collectAsStateWithLifecycle();val session by vm.session.collectAsStateWithLifecycle();val context=LocalContext.current
@@ -339,7 +356,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     }
     if(mode.isNotBlank()){
         var first by remember{mutableStateOf("")};var second by remember{mutableStateOf("")}
-        AlertDialog(onDismissRequest={mode="";uri=null},title={Text(if(mode=="save")"Пароль резервной копии"else"Восстановить бюджет?")},
+        AppDialog(onDismissRequest={mode="";uri=null},title={Text(if(mode=="save")"Пароль резервной копии"else"Восстановить бюджет?")},
             text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
                 if(mode=="restore")Text("Текущий локальный бюджет будет заменён содержимым файла.")
                 OutlinedTextField(first,{first=it.take(128)},label={Text("Пароль · минимум 10 символов")},visualTransformation=PasswordVisualTransformation(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password))
@@ -404,10 +421,10 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         changes.take(20).forEach{c->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(c.action,fontWeight=FontWeight.SemiBold);if(c.description.isNotBlank())Text(c.description);Text(c.changedAt.format(DateTimeFormatter.ofPattern("dd.MM.uuuu HH:mm")),style=MaterialTheme.typography.bodySmall)}}}
         Text("DuoBudget "+BuildConfig.VERSION_NAME+" · Семейный бюджет",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    if(connectConfirmation)AlertDialog(onDismissRequest={connectConfirmation=false},title={Text(if(joining)"Подключить телефон?"else"Создать общий бюджет?")},text={Text("Счета, операции, накопления, цели и имена будут переданы сервису по HTTPS. Серверное хранение без сквозного шифрования: администратор технически может прочитать данные. При подключении по коду локальные операции добавятся к бюджету партнёра. Удалить данные с сервера можно в этом разделе.")},confirmButton={TextButton(onClick={connectConfirmation=false;if(joining)vm.joinFamily(code)else vm.createFamily()}){Text("Подключить")}},dismissButton={TextButton(onClick={connectConfirmation=false}){Text("Отмена")}})
-    if(disconnect)AlertDialog(onDismissRequest={disconnect=false},title={Text(if(session?.role==Payer.ME)"Удалить общий бюджет с сервера?"else"Отключить телефон?")},text={Text(if(session?.role==Payer.ME)"Оба телефона потеряют доступ к этому пространству. Локальные копии останутся на устройствах."else"Твой телефон перестанет синхронизироваться. Данные, уже переданные партнёру, останутся в общем бюджете.")},confirmButton={TextButton(onClick={disconnect=false;vm.disconnect()}){Text("Подтвердить")}},dismissButton={TextButton(onClick={disconnect=false}){Text("Отмена")}})
-    if(reset)AlertDialog(onDismissRequest={reset=false},title={Text("Удалить локальный бюджет?")},text={Text("Будут удалены все операции, счета, цели и накопления на этом телефоне. Сначала сохрани резервную копию.")},confirmButton={TextButton(onClick={reset=false;vm.reset()}){Text("Удалить данные")}},dismissButton={TextButton(onClick={reset=false}){Text("Отмена")}})
-    if(privacy)AlertDialog(onDismissRequest={privacy=false},title={Text("Конфиденциальность")},text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
+    if(connectConfirmation)AppDialog(onDismissRequest={connectConfirmation=false},title={Text(if(joining)"Подключить телефон?"else"Создать общий бюджет?")},text={Text("Счета, операции, накопления, цели и имена будут переданы сервису по HTTPS. Серверное хранение без сквозного шифрования: администратор технически может прочитать данные. При подключении по коду локальные операции добавятся к бюджету партнёра. Удалить данные с сервера можно в этом разделе.")},confirmButton={TextButton(onClick={connectConfirmation=false;if(joining)vm.joinFamily(code)else vm.createFamily()}){Text("Подключить")}},dismissButton={TextButton(onClick={connectConfirmation=false}){Text("Отмена")}})
+    if(disconnect)AppDialog(onDismissRequest={disconnect=false},title={Text(if(session?.role==Payer.ME)"Удалить общий бюджет с сервера?"else"Отключить телефон?")},text={Text(if(session?.role==Payer.ME)"Оба телефона потеряют доступ к этому пространству. Локальные копии останутся на устройствах."else"Твой телефон перестанет синхронизироваться. Данные, уже переданные партнёру, останутся в общем бюджете.")},confirmButton={TextButton(onClick={disconnect=false;vm.disconnect()}){Text("Подтвердить")}},dismissButton={TextButton(onClick={disconnect=false}){Text("Отмена")}})
+    if(reset)AppDialog(onDismissRequest={reset=false},title={Text("Удалить локальный бюджет?")},text={Text("Будут удалены все операции, счета, цели и накопления на этом телефоне. Сначала сохрани резервную копию.")},confirmButton={TextButton(onClick={reset=false;vm.reset()}){Text("Удалить данные")}},dismissButton={TextButton(onClick={reset=false}){Text("Отмена")}})
+    if(privacy)AppDialog(onDismissRequest={privacy=false},title={Text("Конфиденциальность")},text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)){
         Text("Приложение не подключается к банкам, не читает контакты и не содержит рекламной аналитики.")
         Text("На телефоне данные шифруются AES-256-GCM, ключ хранится в Android Keystore. Вход защищён блокировкой устройства, если она настроена.")
         Text("Общий бюджет включается отдельно. Данные передаются по HTTPS и сохраняются на сервере. Это не сквозное шифрование: администратор сервиса технически может прочитать серверные данные.")
