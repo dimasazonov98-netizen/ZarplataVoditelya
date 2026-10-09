@@ -5,7 +5,6 @@ import android.content.Intent
 import androidx.compose.ui.test.*
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.SemanticsProperties
 import com.duobudget.app.ui.DuoBudgetApp
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -24,18 +23,21 @@ import java.io.File
 class BudgetUiInstrumentedTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     private lateinit var vm:AppViewModel
-    private fun idle(){rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value};rule.waitForIdle()}
+    private fun idle(expected:()->Boolean={true}){
+        rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value&&(expected()||vm.message.value.isNotBlank())};rule.waitForIdle()
+    }
     private fun node(text:String):SemanticsNodeInteraction {
         val matcher=hasText(text)
         if(rule.onAllNodes(matcher).fetchSemanticsNodes().isEmpty())
             rule.onNodeWithTag("screen-list").performScrollToNode(matcher)
         val n=rule.onNode(matcher)
         runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()}
+        rule.waitForIdle();n.assertIsDisplayed()
         return n
     }
     private fun click(text:String){
         val n=node(text)
-        rule.waitUntil(10000){runCatching{n.fetchSemanticsNode().config.getOrNull(SemanticsProperties.Disabled)==null}.getOrDefault(false)}
+        rule.waitUntil(10000){runCatching{n.assertIsEnabled();true}.getOrDefault(false)}
         n.assertIsEnabled().performClick();rule.waitForIdle()
     }
     private fun fill(label:String,value:String){node(label).performTextReplacement(value);rule.waitForIdle();node(label).assertTextContains(value)}
@@ -75,46 +77,46 @@ class BudgetUiInstrumentedTest {
         idle();rule.runOnUiThread{vm.clearMessage()};idle()
         click("+ Доход")
         fill("Сумма, ₽","1000")
-        click("Сохранить операцию");idle()
+        click("Сохранить операцию");idle{vm.data.value.transactions.size==1}
         assertEquals(TransactionType.INCOME,vm.data.value.transactions.single().type)
         click("+ Расход")
         fill("Сумма, ₽","500,50")
         fill("Заметка","Магазин — тест")
-        click("Сохранить операцию");idle()
+        click("Сохранить операцию");idle{vm.data.value.transactions.size==2}
         shot("01-home")
         assertEquals("message=${vm.message.value}; transactions=${vm.data.value.transactions.map{it.type to it.amount}}",49950L,BudgetEngine.available(vm.data.value))
         click("Операции")
         rule.onAllNodesWithText("Изменить")[0].performClick();rule.waitForIdle()
         fill("Сумма, ₽","250,75")
-        click("Сохранить операцию");idle()
+        click("Сохранить операцию");idle{vm.data.value.transactions.any{it.type==TransactionType.EXPENSE&&it.amount==25075L}}
         assertEquals(2,vm.data.value.transactions.size)
         assertEquals(25075L,vm.data.value.transactions.first{it.type==TransactionType.EXPENSE}.amount)
         rule.onAllNodesWithText("Удалить")[0].performClick();rule.waitForIdle()
-        rule.onAllNodesWithText("Удалить").onLast().performClick();idle()
+        rule.onAllNodesWithText("Удалить").onLast().performClick();idle{vm.data.value.transactions.any{it.type==TransactionType.EXPENSE&&it.deleted}}
         assertEquals(100000L,BudgetEngine.available(vm.data.value))
         click("Корзина")
-        click("Восстановить");idle()
+        click("Восстановить");idle{vm.data.value.transactions.none{it.deleted}}
         assertEquals(74925L,BudgetEngine.available(vm.data.value))
         click("Цели")
         fill("Сумма, ₽","500")
-        click("Отложить");idle()
+        click("Отложить");idle{vm.data.value.savings==50000L}
         assertEquals(50000L,vm.data.value.savings)
         click("+ Цель");rule.waitForIdle()
         fill("Название","Отпуск — тест")
         fill("Сумма цели, ₽","600")
-        click("Создать цель");idle()
+        click("Создать цель");idle{vm.data.value.goals.size==1}
         fill("Из свободных накоплений, ₽","1000")
-        click("Внести");idle()
+        click("Внести");idle{vm.data.value.goals.singleOrNull()?.currentAmount==50000L}
         assertEquals(50000L,vm.data.value.goals.single().currentAmount)
         assertEquals(0L,vm.data.value.savings)
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
         shot("02-goal")
         rule.onNodeWithText("Удалить").performScrollTo().performClick();rule.waitForIdle()
-        rule.onAllNodesWithText("Удалить").onLast().performClick();idle()
+        rule.onAllNodesWithText("Удалить").onLast().performClick();idle{vm.data.value.goals.isEmpty()}
         assertTrue(vm.data.value.goals.isEmpty());assertEquals(50000L,vm.data.value.savings)
         click("Главная");click("+ Расход");click("Перевод")
         fill("Сумма, ₽","100")
-        click("Сохранить операцию");idle()
+        click("Сохранить операцию");idle{vm.data.value.transactions.size==3}
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
         assertEquals(10000L,BudgetEngine.balance(vm.data.value,"tbank"))
         val originalActivity=rule.activity
