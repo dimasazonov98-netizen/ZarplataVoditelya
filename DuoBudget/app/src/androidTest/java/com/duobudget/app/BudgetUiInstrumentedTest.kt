@@ -19,8 +19,8 @@ class BudgetUiInstrumentedTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     private lateinit var vm:AppViewModel
     private fun idle(){rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value};rule.waitForIdle()}
-    private fun click(text:String){rule.onNodeWithText(text).performClick();rule.waitForIdle()}
-    private fun fill(label:String,value:String){rule.onNodeWithText(label).performScrollTo().performTextReplacement(value)}
+    private fun click(text:String){val n=rule.onNodeWithText(text);runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()};n.performClick();rule.waitForIdle()}
+    private fun fill(label:String,value:String){val n=rule.onNodeWithText(label);runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()};n.performTextReplacement(value)}
     private fun shot(name:String){
         rule.runOnUiThread{
             val view=rule.activity.window.decorView
