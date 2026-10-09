@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -71,6 +72,8 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val error by vm.storageError.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val focusManager=LocalFocusManager.current
+    LaunchedEffect(unlocked){if(!unlocked)focusManager.clearFocus(force=true)}
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner,unlocked){
         val observer=LifecycleEventObserver { _,event->if(event==Lifecycle.Event.ON_RESUME)vm.setForeground(unlocked)else if(event==Lifecycle.Event.ON_STOP)vm.setForeground(false) }
