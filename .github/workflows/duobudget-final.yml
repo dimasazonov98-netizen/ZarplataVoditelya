@@ -1,0 +1,69 @@
+name: DuoBudget final Android verification
+on:
+  push:
+    branches: [duobudget-final-v1]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Money, backup tests, release lint and APK builds
+        working-directory: DuoBudget
+        run: gradle --no-daemon testDebugUnitTest lintRelease assembleRelease assembleDebug assembleDebugAndroidTest --stacktrace
+      - name: Enable KVM
+        run: sudo chmod 666 /dev/kvm
+      - name: Android UI, encrypted vault and restoration tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: Nexus 6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            cd DuoBudget
+            gradle --no-daemon connectedDebugAndroidTest --stacktrace
+      - name: Collect unsigned release, signer and validation
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p final-out/screens
+          if [ -f DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk final-out/
+          fi
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" final-out/
+          cp "$ANDROID_HOME/build-tools/36.0.0/aapt" final-out/
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" final-out/
+          if [ -d "$ANDROID_HOME/build-tools/36.0.0/lib64" ]; then cp -R "$ANDROID_HOME/build-tools/36.0.0/lib64" final-out/; fi
+          cp -R DuoBudget/app/build/reports final-out/reports || true
+          cp -R DuoBudget/app/build/test-results final-out/test-results || true
+          cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
+          for name in 01-home 02-goal 03-final-home; do
+            adb exec-out run-as com.duobudget.family cat "files/$name.png" > "final-out/screens/$name.png" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DuoBudget-v1.0-api-${{ matrix.api }}
+          path: final-out/
+          retention-days: 7
+          if-no-files-found: error
+
