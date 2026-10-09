@@ -8,6 +8,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      DUOBUDGET_TEST_KEYSTORE: ${{ github.workspace }}/DuoBudget/.ci/debug.keystore
     strategy:
       fail-fast: false
       matrix:
@@ -18,6 +20,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Create temporary instrumentation signing key outside emulator home
+        run: |
+          mkdir -p DuoBudget/.ci
+          keytool -genkeypair -keystore "$DUOBUDGET_TEST_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Android Debug,O=Tests,C=US" -noprompt
       - name: Install SDK 36
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -26,6 +32,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.6.0'
+          cache-read-only: false
       - name: Money, backup tests, release lint and APK builds
         working-directory: DuoBudget
         run: gradle --no-daemon testDebugUnitTest lintRelease assembleRelease assembleDebug assembleDebugAndroidTest --stacktrace

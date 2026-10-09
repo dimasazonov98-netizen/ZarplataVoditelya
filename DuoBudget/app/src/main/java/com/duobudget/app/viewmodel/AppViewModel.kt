@@ -98,7 +98,12 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
         try {
             repeat(10) {
                 val commands=s.pending().take(100)
-                val j=withContext(Dispatchers.IO){cloud.sync(session,commands)}
+                val j=withContext(Dispatchers.IO){cloud.sync(session,commands,s.revision())}
+                if(j.optBoolean("unchanged")){
+                    _syncState.value=SyncState.SYNCED
+                    _syncMessage.value="Изменений нет · "+java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                    return@withLock
+                }
                 val ack=j.optJSONArray("ack")
                 val ids=if(ack==null)emptySet() else (0 until ack.length()).map{ack.getString(it)}.toSet()
                 val rejects=j.optJSONArray("rejected")

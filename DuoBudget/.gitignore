@@ -6,6 +6,9 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+.ci/
+*.keystore
+*.p12
 
 # Never commit local Firebase credentials.
 gradle-local.properties

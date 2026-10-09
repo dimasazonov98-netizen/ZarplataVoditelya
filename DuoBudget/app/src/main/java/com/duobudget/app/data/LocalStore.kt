@@ -57,6 +57,7 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     fun pending():List<BudgetCommand> = synchronized(lock){state.pending.toList()}
     fun dark():Boolean=synchronized(lock){state.dark}
     fun changes():List<ChangeLogEntry> = synchronized(lock){state.changes}
+    fun revision():Long=synchronized(lock){state.revision}
     fun members():Int=synchronized(lock){state.members}
     private fun commit(next:Vault){write(next);state=next}
     fun enqueue(c:BudgetCommand)=synchronized(lock){

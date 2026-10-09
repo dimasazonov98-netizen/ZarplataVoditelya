@@ -34,7 +34,7 @@ class BudgetCloudService {
     }
     fun create(actor:String,token:String,data:BudgetData)=request("/api/create",body=JSONObject().put("actorId",actor).put("token",token).put("state",StateCodec.data(data)))
     fun join(actor:String,token:String,code:String,data:BudgetData)=request("/api/join",body=JSONObject().put("actorId",actor).put("token",token).put("code",code.trim().uppercase(java.util.Locale.ROOT)).put("state",StateCodec.data(data)))
-    fun sync(session:CloudSession,commands:List<BudgetCommand>)=if(commands.isEmpty())request("/api/state",session.token) else request("/api/sync",session.token,JSONObject().put("commands",JSONArray(commands.map(StateCodec::command))))
+    fun sync(session:CloudSession,commands:List<BudgetCommand>,revision:Long)=if(commands.isEmpty())request("/api/state?revision="+revision,session.token) else request("/api/sync",session.token,JSONObject().put("commands",JSONArray(commands.map(StateCodec::command))))
     fun invite(session:CloudSession)=request("/api/invite",session.token,JSONObject())
     fun disconnect(session:CloudSession)=request(if(session.role==Payer.ME)"/api/family" else "/api/member",session.token,method="DELETE")
 }
