@@ -220,7 +220,8 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val validDate=date!=null&&date<=LocalDate.now()&&date.year>=1900
     val parsed=Money.parse(amount)
     val choices=(vm.categories+d.categoryLimits.keys+d.transactions.filter{it.type==TransactionType.EXPENSE||it.type==TransactionType.REFUND}.map{it.category}).distinct()
-    LazyColumn(Modifier.fillMaxSize().testTag("screen-list").imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    Column(Modifier.fillMaxSize().imePadding()){
+    LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Title(if(old==null)"Новая операция"else"Изменить операцию")}
         item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){TransactionType.entries.forEach{t->FilterChip(type==t,{type=t},label={Text(typeName(t))})}}}
         item{MoneyField(amount,{amount=it},"Сумма, ₽")}
@@ -240,9 +241,13 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
             if(d.accounts.count{!it.archived}<2)item{Empty("Для перевода добавь второй счёт в разделе «Ещё → Счета».")}
         }
         item{OutlinedTextField(note,{note=it.take(500)},label={Text("Заметка")},modifier=Modifier.fillMaxWidth(),maxLines=4)}
-        item{Button(onClick={vm.saveTransaction(old,type,parsed!!,category,note,account,target,payer,date!!.atTime(old?.createdAt?.toLocalTime()?:LocalTime.now()),onDone)},
-            enabled=!busy&&parsed!=null&&parsed>0&&validDate&&category.isNotBlank()&&(type!=TransactionType.TRANSFER||(target.isNotBlank()&&target!=account))&&(old==null||vm.canEdit(old)),modifier=Modifier.fillMaxWidth().height(52.dp)){Text("Сохранить операцию")}}
-        item{OutlinedButton(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("Отмена")}}
+    }
+    HorizontalDivider()
+    Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+        Button(onClick={vm.saveTransaction(old,type,parsed!!,category,note,account,target,payer,date!!.atTime(old?.createdAt?.toLocalTime()?:LocalTime.now()),onDone)},
+            enabled=!busy&&parsed!=null&&parsed>0&&validDate&&category.isNotBlank()&&(type!=TransactionType.TRANSFER||(target.isNotBlank()&&target!=account))&&(old==null||vm.canEdit(old)),modifier=Modifier.fillMaxWidth().height(52.dp)){Text("Сохранить операцию")}
+        OutlinedButton(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("Отмена")}
+    }
     }
 }
 @Composable private fun BudgetScreen(vm:AppViewModel){
