@@ -26,6 +26,10 @@ class BudgetEngineTest {
     @Test fun editsReplaceInsteadOfDuplicating(){val t=tx();val s=BudgetEngine.apply(BudgetData(),c("TX_PUT",tx=t));val updated=BudgetEngine.apply(s,c("TX_PUT",tx=t.copy(amount=700)));assertEquals(1,updated.transactions.size);assertEquals(700L,updated.transactions[0].amount);assertEquals(2L,updated.transactions[0].version)}
     @Test fun archivePreservesHistoryAndPreventsNewSpending(){val s=BudgetEngine.apply(BudgetData(),c("ACCOUNT_ARCHIVE",1,"sber"));fails{BudgetEngine.apply(s,c("TX_PUT",tx=tx()))};val only=BudgetData(accounts=listOf(MoneyAccount("sber","Банк")));fails{BudgetEngine.apply(only,c("ACCOUNT_ARCHIVE",1,"sber"))};fails{BudgetEngine.apply(only,c("ACCOUNT_PUT",account=MoneyAccount("sber","Банк",archived=true)))}}
     @Test fun codecRoundTripPreservesMoneyAndOwnership(){val t=tx(TransactionType.TRANSFER).copy(targetAccountId="cash");val d=BudgetData(transactions=listOf(t),savings=4400,goals=listOf(Goal(name="Цель",targetAmount=10000,currentAmount=55)));assertEquals(d,StateCodec.data(StateCodec.data(d)))}
+    @Test fun nonIntegerOrStringMoneyInBackupIsRejected(){
+        val j=StateCodec.data(BudgetData());j.put("budget",0.5);fails{StateCodec.data(j)}
+        j.put("budget","500");fails{StateCodec.data(j)}
+    }
     @Test fun incompleteOrPoisonedBackupIsRejected(){fails{StateCodec.data(org.json.JSONObject("{}"))};fails{StateCodec.validate(BudgetData(accounts=listOf(MoneyAccount("x","",0))))}}
 }
 class BackupCipherTest {

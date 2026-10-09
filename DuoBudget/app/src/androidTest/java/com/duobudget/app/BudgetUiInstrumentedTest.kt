@@ -77,7 +77,7 @@ class BudgetUiInstrumentedTest {
         rule.onNodeWithText("Сохранить операцию").performScrollTo().performClick();idle()
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
         assertEquals(10000L,BudgetEngine.balance(vm.data.value,"tbank"))
-        rule.runOnUiThread{rule.activity.onNewIntent(Intent(rule.activity,MainActivity::class.java).putExtra("openAddExpense",true))}
+        rule.runOnUiThread{rule.activity.startActivity(Intent(rule.activity,MainActivity::class.java).putExtra("openAddExpense",true).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))}
         rule.waitForIdle();rule.onNodeWithText("Новая операция").assertExists()
         click("Отмена")
         shot("03-final-home")
