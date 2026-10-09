@@ -42,7 +42,7 @@ class BudgetUiInstrumentedTest {
         // Emit only synthetic test images; the release app contains no image logging.
         val encoded=android.util.Base64.encodeToString(File(rule.activity.filesDir,name+".png").readBytes(),android.util.Base64.NO_WRAP)
         val parts=encoded.chunked(2048)
-        parts.forEachIndexed{index,part->android.util.Log.i("DuoBudgetQA","IMAGE|"+name+"|"+index+"|"+parts.size+"|"+part)}
+        parts.forEachIndexed{index,part->android.util.Log.i("DuoBudgetQA","IMAGE|"+name+"|"+index+"|"+parts.size+"|"+part);Thread.sleep(10)}
 
     }
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){

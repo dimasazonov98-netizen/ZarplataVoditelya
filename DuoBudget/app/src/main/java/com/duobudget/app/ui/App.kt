@@ -204,7 +204,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         item{Title(if(old==null)"Новая операция"else"Изменить операцию")}
         item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){TransactionType.entries.forEach{t->FilterChip(type==t,{type=t},label={Text(typeName(t))})}}}
         item{MoneyField(amount,{amount=it},"Сумма, ₽")}
-        item{OutlinedTextField(dateText,{dateText=it.take(10)},label={Text("Дата · ДД.ММ.ГГГГ")},singleLine=true,isError=!validDate,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),supportingText=if(!validDate)({Text("Введите существующую дату, не позднее сегодня")})else null,modifier=Modifier.fillMaxWidth())}
+        item{OutlinedTextField(dateText,{dateText=it.take(10)},label={Text("Дата · ДД.ММ.ГГГГ")},singleLine=true,isError=!validDate,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Ascii),supportingText=if(!validDate)({Text("Введите существующую дату, не позднее сегодня")})else null,modifier=Modifier.fillMaxWidth())}
         if(type==TransactionType.EXPENSE||type==TransactionType.REFUND){
             item{Text("Категория",fontWeight=FontWeight.SemiBold)}
             item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){choices.forEach{c->FilterChip(category==c&&!custom,{category=c;custom=false},label={Text(c)})};FilterChip(custom,{custom=!custom},label={Text("Своя категория")})}}
