@@ -19,8 +19,16 @@ class BudgetUiInstrumentedTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     private lateinit var vm:AppViewModel
     private fun idle(){rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value};rule.waitForIdle()}
-    private fun click(text:String){val n=rule.onNodeWithText(text);runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()};n.performClick();rule.waitForIdle()}
-    private fun fill(label:String,value:String){val n=rule.onNodeWithText(label);runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()};n.performTextReplacement(value)}
+    private fun node(text:String):SemanticsNodeInteraction {
+        val matcher=hasText(text)
+        if(rule.onAllNodes(matcher).fetchSemanticsNodes().isEmpty())
+            rule.onNodeWithTag("screen-list").performScrollToNode(matcher)
+        val n=rule.onNode(matcher)
+        runCatching{n.assertIsDisplayed()}.onFailure{n.performScrollTo()}
+        return n
+    }
+    private fun click(text:String){node(text).performClick();rule.waitForIdle()}
+    private fun fill(label:String,value:String){node(label).performTextReplacement(value)}
     private fun shot(name:String){
         rule.runOnUiThread{
             val view=rule.activity.window.decorView
@@ -35,36 +43,36 @@ class BudgetUiInstrumentedTest {
         idle()
         click("+ Доход")
         fill("Сумма, ₽","1000")
-        rule.onNodeWithText("Сохранить операцию").performScrollTo().performClick();idle()
+        click("Сохранить операцию");idle()
         assertEquals(TransactionType.INCOME,vm.data.value.transactions.single().type)
         click("+ Расход")
         fill("Сумма, ₽","500,50")
         fill("Заметка","Магазин — тест")
-        rule.onNodeWithText("Сохранить операцию").performScrollTo().performClick();idle()
+        click("Сохранить операцию");idle()
         assertEquals(49950L,BudgetEngine.available(vm.data.value))
         shot("01-home")
         click("Операции")
         rule.onAllNodesWithText("Изменить")[0].performClick();rule.waitForIdle()
         fill("Сумма, ₽","250,75")
-        rule.onNodeWithText("Сохранить операцию").performScrollTo().performClick();idle()
+        click("Сохранить операцию");idle()
         assertEquals(2,vm.data.value.transactions.size)
         assertEquals(25075L,vm.data.value.transactions.first{it.type==TransactionType.EXPENSE}.amount)
         rule.onAllNodesWithText("Удалить")[0].performClick();rule.waitForIdle()
         rule.onAllNodesWithText("Удалить").onLast().performClick();idle()
         assertEquals(100000L,BudgetEngine.available(vm.data.value))
         click("Корзина")
-        rule.onNodeWithText("Восстановить").performScrollTo().performClick();idle()
+        click("Восстановить");idle()
         assertEquals(74925L,BudgetEngine.available(vm.data.value))
         click("Цели")
         fill("Сумма, ₽","500")
-        rule.onNodeWithText("Отложить").performScrollTo().performClick();idle()
+        click("Отложить");idle()
         assertEquals(50000L,vm.data.value.savings)
-        rule.onNodeWithText("+ Цель").performScrollTo().performClick();rule.waitForIdle()
+        click("+ Цель");rule.waitForIdle()
         fill("Название","Отпуск — тест")
         fill("Сумма цели, ₽","600")
         click("Создать цель");idle()
         fill("Из свободных накоплений, ₽","1000")
-        rule.onNodeWithText("Внести").performScrollTo().performClick();idle()
+        click("Внести");idle()
         assertEquals(50000L,vm.data.value.goals.single().currentAmount)
         assertEquals(0L,vm.data.value.savings)
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
@@ -74,7 +82,7 @@ class BudgetUiInstrumentedTest {
         assertTrue(vm.data.value.goals.isEmpty());assertEquals(50000L,vm.data.value.savings)
         click("Главная");click("+ Расход");click("Перевод")
         fill("Сумма, ₽","100")
-        rule.onNodeWithText("Сохранить операцию").performScrollTo().performClick();idle()
+        click("Сохранить операцию");idle()
         assertEquals(24925L,BudgetEngine.available(vm.data.value))
         assertEquals(10000L,BudgetEngine.balance(vm.data.value,"tbank"))
         rule.runOnUiThread{rule.activity.startActivity(Intent(rule.activity,MainActivity::class.java).putExtra("openAddExpense",true).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))}

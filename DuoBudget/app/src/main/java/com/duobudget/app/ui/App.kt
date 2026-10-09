@@ -129,7 +129,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
 @Composable private fun HomeScreen(vm:AppViewModel,onExpense:()->Unit,onIncome:()->Unit,onAccounts:()->Unit,onSettings:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle();val sync by vm.syncState.collectAsStateWithLifecycle()
     val expenses=BudgetEngine.netExpenses(d,month);val income=BudgetEngine.incomes(d,month);val available=BudgetEngine.available(d)
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item {Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Title("Семейный бюджет");Text(d.myName+" + "+d.partnerName,color=MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(onClick=onSettings){Text(syncLabel(sync))}}}
         item{MonthPicker(vm,month)}
         item{Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("Доходы",income,Modifier.weight(1f));Metric("Расходы − возвраты",expenses,Modifier.weight(1f))}}
@@ -175,7 +175,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     var trash by rememberSaveable{mutableStateOf(false)};var allMonths by rememberSaveable{mutableStateOf(false)};var query by rememberSaveable{mutableStateOf("")};var payer by remember{mutableStateOf<Payer?>(null)}
     var deleting by remember{mutableStateOf<MoneyTransaction?>(null)}
     val rows=d.transactions.filter{it.deleted==trash&&(allMonths||YearMonth.from(it.createdAt)==month)&&(payer==null||it.payer==payer)&&listOf(it.category,it.note,vm.payerName(it.payer)).any{s->s.contains(query.trim(),true)}}.sortedByDescending{it.createdAt}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){Title(if(trash)"Корзина"else"Операции")};TextButton(onClick={trash=!trash}){Text(if(trash)"К истории"else"Корзина")}}}
         item{MonthPicker(vm,month)}
         item{OutlinedTextField(query,{query=it.take(80)},label={Text("Поиск по категории, имени, заметке")},singleLine=true,modifier=Modifier.fillMaxWidth())}
@@ -200,7 +200,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val validDate=date!=null&&date<=LocalDate.now()&&date.year>=1900
     val parsed=Money.parse(amount)
     val choices=(vm.categories+d.categoryLimits.keys+d.transactions.filter{it.type==TransactionType.EXPENSE||it.type==TransactionType.REFUND}.map{it.category}).distinct()
-    LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list").imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Title(if(old==null)"Новая операция"else"Изменить операцию")}
         item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){TransactionType.entries.forEach{t->FilterChip(type==t,{type=t},label={Text(typeName(t))})}}}
         item{MoneyField(amount,{amount=it},"Сумма, ₽")}
@@ -233,7 +233,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val parsed=if(value.isBlank())0L else Money.parse(value)
     val parsedLimit=if(limit.isBlank())0L else Money.parse(limit)
     val categories=(vm.categories+d.categoryLimits.keys).distinct()
-    LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list").imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item{Title("Бюджет")}
         item{MonthPicker(vm,month)}
         item{MoneyField(value,{value=it},"Общий лимит на каждый месяц, ₽",zero=true)}
@@ -261,7 +261,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     var value by rememberSaveable{mutableStateOf("")};var withdraw by remember{mutableStateOf(false)}
     var goalDialog by remember{mutableStateOf(false)};var delete by remember{mutableStateOf<Goal?>(null)}
     val amount=Money.parse(value)
-    LazyColumn(Modifier.fillMaxSize().imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list").imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item{Title("Накопления и цели")}
         item{Metric("Свободные накопления",d.savings,Modifier.fillMaxWidth())}
         item{Text("Это деньги, отложенные из остатков счетов. Пополнение не создаёт доход, снятие не создаёт расход.",style=MaterialTheme.typography.bodySmall)}
@@ -302,7 +302,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
 @Composable private fun AccountsScreen(vm:AppViewModel,onBack:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
     var editing by remember{mutableStateOf<MoneyAccount?>(null)};var create by remember{mutableStateOf(false)};var archive by remember{mutableStateOf<MoneyAccount?>(null)}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){Title("Счета")};TextButton(onClick=onBack){Text("Назад")}}}
         item{Text("Начальный остаток — деньги на счёте до первой записанной операции. Архивный счёт остаётся в истории и общем балансе.",style=MaterialTheme.typography.bodySmall)}
         item{Button(onClick={create=true},modifier=Modifier.fillMaxWidth()){Text("+ Добавить счёт")}}
