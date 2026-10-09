@@ -48,11 +48,9 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
+            adb logcat -G 16M || true
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
             mkdir -p final-out/screens
-            adb exec-out cat /sdcard/Download/DuoBudgetQA/01-home.png > final-out/screens/01-home.png
-            adb exec-out cat /sdcard/Download/DuoBudgetQA/02-goal.png > final-out/screens/02-goal.png
-            adb exec-out cat /sdcard/Download/DuoBudgetQA/03-final-home.png > final-out/screens/03-final-home.png
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
@@ -65,6 +63,24 @@ jobs:
           cp -R DuoBudget/app/build/reports final-out/reports || true
           cp -R DuoBudget/app/build/test-results final-out/test-results || true
           cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
+          python3 - <<'PYCODE'
+          import base64,re
+          from pathlib import Path
+          frames={}
+          for path in Path('final-out/androidTest-results').rglob('logcat-*BudgetUiInstrumentedTest*.txt'):
+              for line in path.read_text(errors='replace').splitlines():
+                  m=re.search(r'IMAGE\|([0-9a-z-]+)\|(\d+)\|(\d+)\|([A-Za-z0-9+/=]+)',line)
+                  if m:
+                      name,index,count,data=m.groups()
+                      frame=frames.setdefault(name,{'count':int(count),'parts':{}})
+                      frame['parts'][int(index)]=data
+          for name,frame in frames.items():
+              assert set(frame['parts'])==set(range(frame['count'])),name
+              data=base64.b64decode(''.join(frame['parts'][i] for i in range(frame['count'])),validate=True)
+              assert data.startswith(b'\x89PNG\r\n\x1a\n')
+              Path('final-out/screens',name+'.png').write_bytes(data)
+          assert len(frames)==3,'All synthetic screenshots must be present'
+          PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -6,7 +6,6 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.duobudget.app.model.*
@@ -40,17 +39,11 @@ class BudgetUiInstrumentedTest {
             File(rule.activity.filesDir,name+".png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
             bitmap.recycle()
         }
-        // Keep synthetic QA images outside app storage: UTP uninstalls the test app.
-        // executeShellCommand tokenizes arguments without interpreting shell quotes.
-        // Keep the shell program in one argument and expand separators inside sh.
-        val gap="\${IFS}"
-        val command="sh -c mkdir"+gap+"-p"+gap+"/sdcard/Download/DuoBudgetQA&&run-as"+gap+"com.duobudget.family"+gap+"cat"+gap+"files/"+name+".png>/sdcard/Download/DuoBudgetQA/"+name+".png"
-        fun shell(cmd:String):ByteArray=InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(cmd).let{fd->
-            android.os.ParcelFileDescriptor.AutoCloseInputStream(fd).use{it.readBytes()}
-        }
-        shell(command)
-        val copied=shell("cat /sdcard/Download/DuoBudgetQA/"+name+".png")
-        assertTrue("QA image must survive test cleanup",copied.take(8).toByteArray().contentEquals(byteArrayOf(0x89.toByte(),80,78,71,13,10,26,10)))
+        // Emit only synthetic test images; the release app contains no image logging.
+        val encoded=android.util.Base64.encodeToString(File(rule.activity.filesDir,name+".png").readBytes(),android.util.Base64.NO_WRAP)
+        val parts=encoded.chunked(2048)
+        parts.forEachIndexed{index,part->android.util.Log.i("DuoBudgetQA","IMAGE|"+name+"|"+index+"|"+parts.size+"|"+part)}
+
     }
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){
         rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
