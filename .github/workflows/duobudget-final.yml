@@ -84,8 +84,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: DuoBudget-v1.1.2-api-${{ matrix.api }}
+          name: DuoBudget-v1.1.3-api-${{ matrix.api }}
           path: final-out/
           retention-days: 7
           if-no-files-found: error
-
