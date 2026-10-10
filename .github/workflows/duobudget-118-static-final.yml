@@ -1,0 +1,126 @@
+name: DuoBudget 1.1.8 static photo final
+on:
+  push:
+    branches: [duobudget-final-v1]
+permissions:
+  contents: read
+jobs:
+  verify-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      DUOBUDGET_TEST_KEYSTORE: ${{ github.workspace }}/DuoBudget/.ci/debug.keystore
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore complete static theme photos
+        run: |
+          python3 - <<'PY'
+          import base64, json, urllib.request
+          from pathlib import Path
+
+          root = Path('DuoBudget/app/src/main/res/drawable-nodpi')
+          root.mkdir(parents=True, exist_ok=True)
+
+          remote = {
+              'theme_ocean.webp': 'f3ba9d60edaea4833f8f122958ffaef142acc065',
+              'theme_city.webp': 'd3051356bfd793656599a443d26dcc5764e42cf3',
+              'theme_sand.webp': '714c24db4c868201e1c91d7dfd41020e04607d59',
+          }
+          for filename, sha in remote.items():
+              url = f'https://api.github.com/repos/dimasazonov98-netizen/ZarplataVoditelya/git/blobs/{sha}'
+              req = urllib.request.Request(url, headers={'User-Agent': 'DuoBudget-CI'})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  obj = json.load(response)
+              data = base64.b64decode(obj['content'])
+              target = root / filename
+              target.write_bytes(data)
+
+          local = {
+              'theme_mountains.webp': Path('DuoBudget/theme-assets/mountains.b64'),
+              'theme_sunset.webp': Path('DuoBudget/theme-assets/sunset.b64'),
+          }
+          for filename, source in local.items():
+              raw = ''.join(source.read_text().split())
+              data = base64.b64decode(raw, validate=True)
+              (root / filename).write_bytes(data)
+
+          for filename in [
+              'theme_ocean.webp', 'theme_city.webp', 'theme_sand.webp',
+              'theme_mountains.webp', 'theme_sunset.webp'
+          ]:
+              data = (root / filename).read_bytes()
+              assert len(data) > 1000, (filename, len(data))
+              assert data[:4] == b'RIFF' and data[8:12] == b'WEBP', filename
+              print(filename, len(data))
+          PY
+      - name: Create temporary instrumentation signing key
+        run: |
+          mkdir -p DuoBudget/.ci
+          keytool -genkeypair -keystore "$DUOBUDGET_TEST_KEYSTORE" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Android Debug,O=Tests,C=US" -noprompt
+      - name: Install SDK 36
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+          cache-read-only: false
+      - name: Unit tests lint and APK builds
+        working-directory: DuoBudget
+        run: gradle --no-daemon testDebugUnitTest lintRelease assembleRelease assembleDebug assembleDebugAndroidTest --stacktrace
+      - name: Enable KVM
+        run: sudo chmod 666 /dev/kvm
+      - name: Android UI vault restoration and static theme tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: Nexus 6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb logcat -G 16M || true
+            gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
+            adb install -r -t DuoBudget/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r -t DuoBudget/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -e class com.duobudget.app.ThemeLayoutInstrumentedTest com.duobudget.family.test/androidx.test.runner.AndroidJUnitRunner
+            mkdir -p final-out/theme-previews
+            for name in 01-classic-light 02-classic-dark 03-mountains 04-forest 05-city 06-sunset 07-ocean 08-minimal 09-purple-night 10-golden-sand; do adb exec-out run-as com.duobudget.family cat "files/theme-preview-$name.jpg" > "final-out/theme-previews/$name.jpg"; test -s "final-out/theme-previews/$name.jpg"; done
+      - name: Collect final artifact
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p final-out/screens final-out/theme-previews
+          if [ -f DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk final-out/
+          fi
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" final-out/ || true
+          cp -R DuoBudget/app/build/reports final-out/reports || true
+          cp -R DuoBudget/app/build/test-results final-out/test-results || true
+          cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
+          python3 - <<'PY'
+          from pathlib import Path
+          previews=sorted(Path('final-out/theme-previews').glob('*.jpg'))
+          assert len(previews)==10, f'Expected 10 theme previews, got {len(previews)}'
+          for preview in previews:
+              data=preview.read_bytes()
+              assert len(data)>1024, preview
+              assert data.startswith(b'\xff\xd8\xff'), preview
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DuoBudget-v1.1.8-static-api-${{ matrix.api }}
+          path: final-out/
+          retention-days: 7
+          if-no-files-found: error
