@@ -50,6 +50,9 @@ jobs:
           script: |
             adb logcat -G 16M || true
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
+            adb install -r -t DuoBudget/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r -t DuoBudget/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w -e class com.duobudget.app.ThemeLayoutInstrumentedTest com.duobudget.family.test/androidx.test.runner.AndroidJUnitRunner
             mkdir -p final-out/screens final-out/theme-previews
             for name in 01-classic-light 02-classic-dark 03-mountains 04-forest 05-city 06-sunset 07-ocean 08-minimal 09-purple-night 10-golden-sand; do adb exec-out run-as com.duobudget.family cat "files/theme-preview-$name.jpg" > "final-out/theme-previews/$name.jpg"; test -s "final-out/theme-previews/$name.jpg"; done
       - name: Collect unsigned release, signer and validation
