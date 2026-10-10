@@ -83,20 +83,24 @@ class ThemeLayoutInstrumentedTest {
     }
 
     @Test
-    fun allThemesAndAnimationKeepPrimaryLayoutStable() {
+    fun allStaticThemesKeepPrimaryLayoutStable() {
         rule.waitForIdle()
         val labels = listOf("Наш бюджет", "Главная", "Операции", "Цели", "Ещё")
+        val baseline = labels.associateWith { assertInsideRoot(it) }
 
         ThemeStyle.entries.forEach { style ->
             rule.runOnUiThread {
                 ThemePreferences.setStyle(rule.activity, style)
                 ThemePreferences.set(rule.activity, recommendedMode(style))
-                ThemePreferences.setAnimatedBackground(rule.activity, true)
             }
             rule.waitForIdle()
 
-            val animatedBounds = labels.associateWith { assertInsideRoot(it) }
-            val nav = listOf("Главная", "Операции", "Цели", "Ещё").map { animatedBounds.getValue(it) }
+            val current = labels.associateWith { assertInsideRoot(it) }
+            labels.forEach { label ->
+                assertSameRect(baseline.getValue(label), current.getValue(label), "$style / $label")
+            }
+
+            val nav = listOf("Главная", "Операции", "Цели", "Ещё").map { current.getValue(it) }
             nav.zipWithNext().forEachIndexed { index, (left, right) ->
                 assertTrue(
                     "Bottom navigation labels overlap for $style at $index: $left / $right",
@@ -104,14 +108,6 @@ class ThemeLayoutInstrumentedTest {
                 )
             }
             shot(previewName(style))
-
-            rule.runOnUiThread {
-                ThemePreferences.setAnimatedBackground(rule.activity, false)
-            }
-            rule.waitForIdle()
-            labels.forEach { label ->
-                assertSameRect(animatedBounds.getValue(label), assertInsideRoot(label), "$style / $label")
-            }
         }
     }
 
@@ -121,7 +117,7 @@ class ThemeLayoutInstrumentedTest {
         rule.onAllNodes(hasText("Ещё"))[0].performClick()
         rule.waitForIdle()
 
-        val required = listOf(
+        val themeLabels = listOf(
             "Классическая светлая",
             "Классическая тёмная",
             "Горные пейзажи",
@@ -131,14 +127,41 @@ class ThemeLayoutInstrumentedTest {
             "Океан",
             "Минимализм",
             "Фиолетовая ночь",
-            "Золотой песок",
-            "Анимированный фон",
-            "Система",
-            "Светлая",
-            "Тёмная"
+            "Золотой песок"
         )
 
-        required.forEach { label ->
+        themeLabels.forEach { label ->
+            val node = rule.onAllNodes(hasText(label))[0]
+            runCatching { node.performScrollTo() }
+            rule.waitForIdle()
+            node.assertIsDisplayed()
+        }
+
+        assertTrue(
+            "Animated background control must be removed",
+            rule.onAllNodes(hasText("Анимированный фон")).fetchSemanticsNodes().isEmpty()
+        )
+
+        ThemeStyle.entries.chunked(2).forEach { pair ->
+            val first = rule.onNodeWithTag("theme-${pair[0].name.lowercase()}")
+            runCatching { first.performScrollTo() }
+            rule.waitForIdle()
+            val firstBounds = first.fetchSemanticsNode().boundsInRoot
+            assertTrue("First theme chip has no size: ${pair[0]}", firstBounds.width > 0f && firstBounds.height > 0f)
+
+            if (pair.size > 1) {
+                val second = rule.onNodeWithTag("theme-${pair[1].name.lowercase()}")
+                val secondBounds = second.fetchSemanticsNode().boundsInRoot
+                assertTrue("Second theme chip has no size: ${pair[1]}", secondBounds.width > 0f && secondBounds.height > 0f)
+                assertTrue(
+                    "Theme chips overlap: ${pair[0]} / ${pair[1]}: $firstBounds / $secondBounds",
+                    firstBounds.right <= secondBounds.left + 1f
+                )
+                assertEquals("Theme row top differs", firstBounds.top, secondBounds.top, 2f)
+            }
+        }
+
+        listOf("Система", "Светлая", "Тёмная").forEach { label ->
             val node = rule.onAllNodes(hasText(label))[0]
             runCatching { node.performScrollTo() }
             rule.waitForIdle()
