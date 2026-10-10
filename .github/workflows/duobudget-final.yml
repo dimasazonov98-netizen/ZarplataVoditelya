@@ -48,14 +48,14 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            adb logcat -G 16M || true
+            adb logcat -G 32M || true
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
-            mkdir -p final-out/screens
+            mkdir -p final-out/screens final-out/theme-previews
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
         run: |
-          mkdir -p final-out/screens
+          mkdir -p final-out/screens final-out/theme-previews
           if [ -f DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
             cp DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk final-out/
           fi
@@ -66,6 +66,7 @@ jobs:
           python3 - <<'PYCODE'
           import base64,re
           from pathlib import Path
+
           frames={}
           for path in Path('final-out/androidTest-results').rglob('logcat-*BudgetUiInstrumentedTest*.txt'):
               for line in path.read_text(errors='replace').splitlines():
@@ -80,11 +81,26 @@ jobs:
               assert data.startswith(b'\x89PNG\r\n\x1a\n')
               Path('final-out/screens',name+'.png').write_bytes(data)
           assert len(frames)==3,'All synthetic screenshots must be present'
+
+          themes={}
+          for path in Path('final-out/androidTest-results').rglob('logcat-*ThemeLayoutInstrumentedTest*.txt'):
+              for line in path.read_text(errors='replace').splitlines():
+                  m=re.search(r'THEMEIMAGE\|([0-9a-z-]+)\|(\d+)\|(\d+)\|([A-Za-z0-9+/=]+)',line)
+                  if m:
+                      name,index,count,data=m.groups()
+                      frame=themes.setdefault(name,{'count':int(count),'parts':{}})
+                      frame['parts'][int(index)]=data
+          for name,frame in themes.items():
+              assert set(frame['parts'])==set(range(frame['count'])),name
+              data=base64.b64decode(''.join(frame['parts'][i] for i in range(frame['count'])),validate=True)
+              assert data.startswith(b'\xff\xd8\xff')
+              Path('final-out/theme-previews',name+'.jpg').write_bytes(data)
+          assert len(themes)==10,'All ten theme previews must be present'
           PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: DuoBudget-v1.1.6-api-${{ matrix.api }}
+          name: DuoBudget-v1.1.7-api-${{ matrix.api }}
           path: final-out/
           retention-days: 7
           if-no-files-found: error
