@@ -69,89 +69,99 @@ private fun darkScheme(
     surfaceVariant = surfaceVariant,
     onSurfaceVariant = onSurfaceVariant,
     outline = onSurfaceVariant.copy(alpha = .70f),
-    outlineVariant = onSurfaceVariant.copy(alpha = .28f),
+    outlineVariant = onSurfaceVariant.copy(alpha = .30f),
     error = Color(0xFFFFB4AB)
 )
 
 private fun palette(style: ThemeStyle, dark: Boolean): ColorScheme = when (style) {
+    // 1. Classic light.
     ThemeStyle.BOTANICAL -> if (dark) darkScheme(
-        Color(0xFFDF8969), Color(0xFFA8BA9E), Color(0xFF171311), Color(0xFF2A231F), Color(0xFF453A34),
-        Color(0xFFFFF7F1), Color(0xFFD2C2B8), Color(0xFF693522), Color(0xFFFFDBCD)
+        Color(0xFF8FC8FF), Color(0xFFB1C4D8), Color(0xFF101419), Color(0xFF1B2229), Color(0xFF26313B),
+        Color(0xFFF4F8FC), Color(0xFFBBC8D4), Color(0xFF244A68), Color(0xFFD7ECFF)
     ) else lightScheme(
-        Color(0xFFA95036), Color(0xFF64745D), Color(0xFFE9E1D5), Color(0xFFF9F2E9), Color(0xFFE8DDD2),
-        Color(0xFF211914), Color(0xFF594C43), Color(0xFFF2D6C7), Color(0xFF3B1B11)
+        Color(0xFF2C87D6), Color(0xFF607486), Color(0xFFF6F9FC), Color(0xFFFDFEFF), Color(0xFFEAF0F6),
+        Color(0xFF111820), Color(0xFF5D6974), Color(0xFFDCEEFF), Color(0xFF143A59)
     )
 
+    // 2. Classic dark / graphite.
     ThemeStyle.MINIMAL -> if (dark) darkScheme(
-        Color(0xFF8CCF9A), Color(0xFFA7B8AC), Color(0xFF111412), Color(0xFF1B211D), Color(0xFF28312B),
-        Color(0xFFF3F7F4), Color(0xFFBAC5BD), Color(0xFF27472F), Color(0xFFD8F7DF)
+        Color(0xFF8FCBFF), Color(0xFF9EAAB5), Color(0xFF07090C), Color(0xFF15191E), Color(0xFF232931),
+        Color(0xFFF4F7FA), Color(0xFFB6C0C9), Color(0xFF1E405D), Color(0xFFD7EDFF)
     ) else lightScheme(
-        Color(0xFF2F8F4E), Color(0xFF637168), Color(0xFFF8FAF8), Color(0xFFFFFFFF), Color(0xFFF0F3F0),
-        Color(0xFF121714), Color(0xFF687069), Color(0xFFDDF2E2), Color(0xFF14351F)
+        Color(0xFF3A7EAF), Color(0xFF687987), Color(0xFFE9EEF3), Color(0xFFF7F9FB), Color(0xFFDDE4EA),
+        Color(0xFF11171C), Color(0xFF5F6C76), Color(0xFFD4E7F4), Color(0xFF1A3B52)
     )
 
+    // 3. Mountain landscape.
     ThemeStyle.NEON -> if (dark) darkScheme(
-        Color(0xFF4FF2C2), Color(0xFF55B7FF), Color(0xFF071014), Color(0xFF0D1A20), Color(0xFF122831),
-        Color(0xFFF1FCFF), Color(0xFFA8C2CC), Color(0xFF093C32), Color(0xFFB8FFE8)
+        Color(0xFF91D8F4), Color(0xFFAFC8D6), Color(0xFF092737), Color(0xFF123A4D), Color(0xFF1E5063),
+        Color(0xFFF4FBFF), Color(0xFFC1D5DF), Color(0xFF245D75), Color(0xFFD9F3FF)
     ) else lightScheme(
-        Color(0xFF007F6B), Color(0xFF176D9A), Color(0xFFF3FBFA), Color(0xFFFFFFFF), Color(0xFFE3F5F2),
-        Color(0xFF0B1F1C), Color(0xFF4E6C67), Color(0xFFC8F7EC), Color(0xFF003C32)
+        Color(0xFF137EA8), Color(0xFF4A7084), Color(0xFFDFF4FD), Color(0xFFF2FBFF), Color(0xFFD0EAF5),
+        Color(0xFF0B2633), Color(0xFF4D6977), Color(0xFFCBEFFF), Color(0xFF083E55)
     )
 
+    // 4. Forest nature.
     ThemeStyle.FAMILY -> if (dark) darkScheme(
-        Color(0xFFFF9A77), Color(0xFFB7C59A), Color(0xFF211815), Color(0xFF30231F), Color(0xFF47352E),
-        Color(0xFFFFF3EC), Color(0xFFD8C3B8), Color(0xFF6B392C), Color(0xFFFFD8C7)
+        Color(0xFFAAD09B), Color(0xFFE6D5A5), Color(0xFF101B13), Color(0xFF203127), Color(0xFF31493A),
+        Color(0xFFF5FAF3), Color(0xFFC2D1C0), Color(0xFF36563B), Color(0xFFE0F2D8)
     ) else lightScheme(
-        Color(0xFFC95D3D), Color(0xFF77855E), Color(0xFFFFF5E8), Color(0xFFFFFBF4), Color(0xFFF4E8D8),
-        Color(0xFF2A1C17), Color(0xFF6F5B50), Color(0xFFFBD9CB), Color(0xFF4A2117)
+        Color(0xFF4F7C52), Color(0xFF927A4E), Color(0xFFDDE6D1), Color(0xFFF0F4E8), Color(0xFFD0DDC8),
+        Color(0xFF152019), Color(0xFF566557), Color(0xFFD9EBD3), Color(0xFF213E25)
     )
 
+    // 5. City chic.
     ThemeStyle.AURORA -> if (dark) darkScheme(
-        Color(0xFF8EA8FF), Color(0xFF7DE8D0), Color(0xFF0F1022), Color(0xFF181A31), Color(0xFF262944),
-        Color(0xFFF8F8FF), Color(0xFFBEC2DF), Color(0xFF27386E), Color(0xFFDCE3FF)
+        Color(0xFF8FA7FF), Color(0xFFF38BD5), Color(0xFF070B16), Color(0xFF151A2C), Color(0xFF242B45),
+        Color(0xFFF7F8FF), Color(0xFFBDC3DB), Color(0xFF32477A), Color(0xFFDCE3FF)
     ) else lightScheme(
-        Color(0xFF5267E9), Color(0xFF278D83), Color(0xFFF3F5FF), Color(0xFFFFFFFF), Color(0xFFE7EAFC),
-        Color(0xFF171932), Color(0xFF5C607C), Color(0xFFDDE3FF), Color(0xFF1A286F)
+        Color(0xFF5267D8), Color(0xFFAE4A91), Color(0xFFDCE3F3), Color(0xFFF2F5FC), Color(0xFFCFD8EC),
+        Color(0xFF151A2D), Color(0xFF5D657D), Color(0xFFD8E0FF), Color(0xFF26366C)
     )
 
+    // 6. Sunset.
     ThemeStyle.SAGE -> if (dark) darkScheme(
-        Color(0xFFA8C7A6), Color(0xFFD0BA9B), Color(0xFF171C17), Color(0xFF222922), Color(0xFF313B32),
-        Color(0xFFF2F7F1), Color(0xFFBCC8BA), Color(0xFF38513B), Color(0xFFD9EED8)
+        Color(0xFFFFB274), Color(0xFFD3A1F2), Color(0xFF27162C), Color(0xFF42293A), Color(0xFF5C3A4E),
+        Color(0xFFFFF6F0), Color(0xFFE0C2CE), Color(0xFF70412C), Color(0xFFFFDFC9)
     ) else lightScheme(
-        Color(0xFF64836B), Color(0xFF9A7655), Color(0xFFF3F3EA), Color(0xFFFCFBF4), Color(0xFFE7E8DC),
-        Color(0xFF1E251F), Color(0xFF60695F), Color(0xFFDDE8D8), Color(0xFF2A402E)
+        Color(0xFFD55F43), Color(0xFF7657A0), Color(0xFFFFD6B9), Color(0xFFFFE9D8), Color(0xFFF2C5B6),
+        Color(0xFF321B21), Color(0xFF75575D), Color(0xFFFFD8C4), Color(0xFF5F2819)
     )
 
+    // 7. Ocean.
     ThemeStyle.MATERIAL -> if (dark) darkScheme(
-        Color(0xFFC3B3FF), Color(0xFF80D8C4), Color(0xFF17151F), Color(0xFF221F2C), Color(0xFF342F41),
-        Color(0xFFF8F5FF), Color(0xFFC9C2D4), Color(0xFF463A73), Color(0xFFE9E0FF)
+        Color(0xFF6BEAF1), Color(0xFF7CCBFF), Color(0xFF022736), Color(0xFF073D50), Color(0xFF0C5368),
+        Color(0xFFF1FDFF), Color(0xFFB8D9E0), Color(0xFF075E70), Color(0xFFD4FCFF)
     ) else lightScheme(
-        Color(0xFF6E56CF), Color(0xFF2E8D7E), Color(0xFFF8F6FF), Color(0xFFFFFFFF), Color(0xFFEDE8F8),
-        Color(0xFF201A2B), Color(0xFF685F74), Color(0xFFE8DEFF), Color(0xFF2C1E66)
+        Color(0xFF087FA5), Color(0xFF2B84B8), Color(0xFFCFF4F8), Color(0xFFE7FBFD), Color(0xFFBDE7EC),
+        Color(0xFF082830), Color(0xFF4B6E76), Color(0xFFC6F7FA), Color(0xFF064B5E)
     )
 
+    // 8. Minimalism.
     ThemeStyle.LUXURY -> if (dark) darkScheme(
-        Color(0xFFE5BF6A), Color(0xFFC5A86A), Color(0xFF0E0C09), Color(0xFF1B1711), Color(0xFF30291D),
-        Color(0xFFFFF7E9), Color(0xFFD4C6AA), Color(0xFF5B461C), Color(0xFFFFE2A1)
+        Color(0xFF9EC8E9), Color(0xFFB5C0CA), Color(0xFF111418), Color(0xFF20252B), Color(0xFF30373E),
+        Color(0xFFF6F8FA), Color(0xFFC2CBD3), Color(0xFF33495D), Color(0xFFDCEAF4)
     ) else lightScheme(
-        Color(0xFF9A6B18), Color(0xFF5E5135), Color(0xFFF5EFE3), Color(0xFFFFFBF3), Color(0xFFEAE0CD),
-        Color(0xFF221B10), Color(0xFF6B604D), Color(0xFFF1D9A5), Color(0xFF3F2B07)
+        Color(0xFF347DB7), Color(0xFF6C7D8B), Color(0xFFF2F5F8), Color(0xFFFCFDFE), Color(0xFFE5EAF0),
+        Color(0xFF11161A), Color(0xFF65717B), Color(0xFFDDEBF6), Color(0xFF173A54)
     )
 
+    // 9. Purple night.
     ThemeStyle.CORAL -> if (dark) darkScheme(
-        Color(0xFFFF8B79), Color(0xFF53D3C5), Color(0xFF1B1415), Color(0xFF2A1D1F), Color(0xFF3F2B2D),
-        Color(0xFFFFF5F2), Color(0xFFDCC3C0), Color(0xFF6D322A), Color(0xFFFFD8D1)
+        Color(0xFFC18AFF), Color(0xFF8EA2FF), Color(0xFF09061C), Color(0xFF20113D), Color(0xFF35205A),
+        Color(0xFFF9F5FF), Color(0xFFCFC1E1), Color(0xFF57318A), Color(0xFFF0DDFF)
     ) else lightScheme(
-        Color(0xFFFF5F52), Color(0xFF159D91), Color(0xFFFFF6F1), Color(0xFFFFFFFF), Color(0xFFF8E8E1),
-        Color(0xFF2B1916), Color(0xFF75615D), Color(0xFFFFDDD7), Color(0xFF5E211B)
+        Color(0xFF7946B6), Color(0xFF5066C7), Color(0xFFE5D9F5), Color(0xFFF4EEFB), Color(0xFFD8C9EA),
+        Color(0xFF23162E), Color(0xFF6D5A79), Color(0xFFE8D7FA), Color(0xFF442464)
     )
 
+    // 10. Golden sand.
     ThemeStyle.CYBER -> if (dark) darkScheme(
-        Color(0xFF37D8FF), Color(0xFF28F0D0), Color(0xFF05101F), Color(0xFF0A1A2D), Color(0xFF102B46),
-        Color(0xFFF2FAFF), Color(0xFFA7C4D8), Color(0xFF063D55), Color(0xFFB9F1FF)
+        Color(0xFFE9B168), Color(0xFFD18D50), Color(0xFF2E1E12), Color(0xFF4C321D), Color(0xFF654225),
+        Color(0xFFFFF8EF), Color(0xFFDEC7AD), Color(0xFF78451E), Color(0xFFFFE3BD)
     ) else lightScheme(
-        Color(0xFF0078A8), Color(0xFF008B78), Color(0xFFF0F8FF), Color(0xFFFFFFFF), Color(0xFFDDEEF7),
-        Color(0xFF071D2A), Color(0xFF4F6977), Color(0xFFCDEFFF), Color(0xFF00394E)
+        Color(0xFFAC5F27), Color(0xFF7B6042), Color(0xFFF8DDAF), Color(0xFFFFF2DB), Color(0xFFEBC99D),
+        Color(0xFF2C1D11), Color(0xFF765F4A), Color(0xFFFFDDB2), Color(0xFF5B2D10)
     )
 }
 
