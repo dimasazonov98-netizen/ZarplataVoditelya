@@ -48,9 +48,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            adb logcat -G 32M || true
+            adb logcat -G 16M || true
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
             mkdir -p final-out/screens final-out/theme-previews
+            for name in 01-classic-light 02-classic-dark 03-mountains 04-forest 05-city 06-sunset 07-ocean 08-minimal 09-purple-night 10-golden-sand; do
+              adb exec-out run-as com.duobudget.family cat "files/theme-preview-$name.jpg" > "final-out/theme-previews/$name.jpg"
+              test -s "final-out/theme-previews/$name.jpg"
+            done
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
@@ -82,20 +86,12 @@ jobs:
               Path('final-out/screens',name+'.png').write_bytes(data)
           assert len(frames)==3,'All synthetic screenshots must be present'
 
-          themes={}
-          for path in Path('final-out/androidTest-results').rglob('logcat-*ThemeLayoutInstrumentedTest*.txt'):
-              for line in path.read_text(errors='replace').splitlines():
-                  m=re.search(r'THEMEIMAGE\|([0-9a-z-]+)\|(\d+)\|(\d+)\|([A-Za-z0-9+/=]+)',line)
-                  if m:
-                      name,index,count,data=m.groups()
-                      frame=themes.setdefault(name,{'count':int(count),'parts':{}})
-                      frame['parts'][int(index)]=data
-          for name,frame in themes.items():
-              assert set(frame['parts'])==set(range(frame['count'])),name
-              data=base64.b64decode(''.join(frame['parts'][i] for i in range(frame['count'])),validate=True)
-              assert data.startswith(b'\xff\xd8\xff')
-              Path('final-out/theme-previews',name+'.jpg').write_bytes(data)
-          assert len(themes)==10,'All ten theme previews must be present'
+          previews=sorted(Path('final-out/theme-previews').glob('*.jpg'))
+          assert len(previews)==10, f'Expected 10 theme previews, got {len(previews)}'
+          for preview in previews:
+              data=preview.read_bytes()
+              assert len(data)>1024, preview
+              assert data.startswith(b'\xff\xd8\xff'), preview
           PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
