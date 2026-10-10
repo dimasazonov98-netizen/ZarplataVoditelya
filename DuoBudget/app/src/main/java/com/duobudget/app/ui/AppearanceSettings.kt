@@ -10,16 +10,17 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.duobudget.app.ui.theme.ThemeMode
 import com.duobudget.app.ui.theme.ThemePreferences
@@ -43,8 +44,8 @@ private fun themePreview(style: ThemeStyle) = when (style) {
     ThemeStyle.MINIMAL -> Color(0xFF20242A)
     ThemeStyle.NEON -> Color(0xFF55BCEB)
     ThemeStyle.FAMILY -> Color(0xFF547C52)
-    ThemeStyle.AURORA -> Color(0xFF6A64D8)
-    ThemeStyle.SAGE -> Color(0xFFF07B55)
+    ThemeStyle.AURORA -> Color(0xFFFF39C6)
+    ThemeStyle.SAGE -> Color(0xFFFF7A32)
     ThemeStyle.MATERIAL -> Color(0xFF13A7D8)
     ThemeStyle.LUXURY -> Color(0xFFD9E1E8)
     ThemeStyle.CORAL -> Color(0xFF7B3FD1)
@@ -61,7 +62,6 @@ private fun recommendedMode(style: ThemeStyle) = when (style) {
 internal fun AppearanceSettingsContent(context: Context) {
     val mode = ThemePreferences.currentMode
     val style = ThemePreferences.currentStyle
-    val animated = ThemePreferences.animatedBackground
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Оформление", fontWeight = FontWeight.SemiBold)
@@ -70,50 +70,51 @@ internal fun AppearanceSettingsContent(context: Context) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+
+        Column(
+            modifier = Modifier.fillMaxWidth().testTag("theme-selector"),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ThemeStyle.entries.forEach { option ->
-                FilterChip(
-                    selected = style == option,
-                    onClick = {
-                        ThemePreferences.setStyle(context, option)
-                        ThemePreferences.set(context, recommendedMode(option))
-                    },
-                    leadingIcon = {
-                        Box(
-                            Modifier
-                                .size(14.dp)
-                                .background(themePreview(option), CircleShape)
+            ThemeStyle.entries.chunked(2).forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    pair.forEach { option ->
+                        FilterChip(
+                            selected = style == option,
+                            onClick = {
+                                ThemePreferences.setStyle(context, option)
+                                ThemePreferences.set(context, recommendedMode(option))
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("theme-${option.name.lowercase()}"),
+                            leadingIcon = {
+                                Box(
+                                    Modifier
+                                        .size(14.dp)
+                                        .background(themePreview(option), CircleShape)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    themeName(option),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         )
-                    },
-                    label = { Text(themeName(option)) }
-                )
+                    }
+                }
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text("Анимированный фон", fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (animated) "Живой фон включён" else "Используется статичный фон",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(
-                checked = animated,
-                onCheckedChange = { ThemePreferences.setAnimatedBackground(context, it) }
-            )
-        }
+        Text(
+            "Фон темы статичный. Пять пейзажных тем используют выбранные изображения.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Text(
             "Яркость интерфейса",
@@ -142,7 +143,7 @@ internal fun AppearanceSettingsContent(context: Context) {
         }
 
         Text(
-            "При выборе темы включается яркость как на её превью. После выбора её можно изменить вручную.",
+            "При выборе темы включается рекомендуемая яркость. После выбора её можно изменить вручную.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
