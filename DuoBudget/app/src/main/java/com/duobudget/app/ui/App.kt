@@ -205,7 +205,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
 private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,onAdd:()->Unit,onNavigate:(String)->Unit){
     val dark=isSystemInDarkTheme()
     Surface(
-        modifier=Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),
+        modifier=Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=12.dp,vertical=8.dp),
         shape=RoundedCornerShape(28.dp),
         color=if(dark)Color(0xCC302824)else Color(0xB8FFFDF8),
         border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.8f)),
