@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10103
-        versionName = "1.1.3"
+        versionCode = 10104
+        versionName = "1.1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
@@ -42,14 +42,13 @@ val patchDuoBudgetUi = tasks.register("patchDuoBudgetUi") {
         var text = uiFile.readText()
 
         val oldHeader = "Surface(onClick=onSettings,shape=CircleShape,color=MaterialTheme.colorScheme.surfaceContainer,border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)){Text(if(sync==SyncState.SYNCING)\"↻\"else\"⌂\",Modifier.padding(12.dp),fontSize=19.sp)}"
-        val newHeader = "Surface(onClick=onSettings,shape=CircleShape,color=MaterialTheme.colorScheme.surfaceContainer,border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant),modifier=Modifier.semantics{contentDescription=\"Настройки\"}){Text(if(sync==SyncState.SYNCING)\"↻\"else\"⚙\",Modifier.padding(12.dp),fontSize=19.sp)}"
-        if (text.contains(oldHeader)) text = text.replace(oldHeader, newHeader)
+        if (text.contains(oldHeader)) text = text.replace(oldHeader, "")
 
         val oldAppearance = "GlassCard(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(\"Оформление\",fontWeight=FontWeight.SemiBold);Text(\"Светлая или тёмная тема включается автоматически вместе с темой телефона.\",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}"
         val newAppearance = "GlassCard(Modifier.fillMaxWidth()){AppearanceSettingsContent(context)}"
         if (text.contains(oldAppearance)) text = text.replace(oldAppearance, newAppearance)
 
-        check(text.contains("contentDescription=\"Настройки\"")) { "Header settings icon patch was not applied" }
+        check(!text.contains("Surface(onClick=onSettings")) { "Home header settings button was not removed" }
         check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
         uiFile.writeText(text)
     }
