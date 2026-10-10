@@ -48,7 +48,7 @@ class MainActivity:FragmentActivity() {
         if(!biometric&&!secureDevice)unlock()
         if(intent?.getBooleanExtra("openAddExpense",false)==true){expenseRequest.value++;intent.removeExtra("openAddExpense")}
         setContent{
-            DuoBudgetTheme(false){
+            DuoBudgetTheme{
                 Box(Modifier.fillMaxSize()){
                     // Keep drafts and document-picker callbacks alive when the app locks.
                     if(hasUnlocked.value){

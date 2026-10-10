@@ -27,7 +27,7 @@ class BudgetUiInstrumentedTest {
         rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value&&(expected()||vm.message.value.isNotBlank())};rule.waitForIdle()
     }
     private fun node(text:String):SemanticsNodeInteraction {
-        val matcher=hasText(text)
+        val matcher=hasText(text) or hasContentDescription(text)
         if(rule.onAllNodes(matcher).fetchSemanticsNodes().isEmpty())
             rule.onNodeWithTag("screen-list").performScrollToNode(matcher)
         val n=rule.onNode(matcher)
@@ -81,11 +81,11 @@ class BudgetUiInstrumentedTest {
     @Test fun householdFlow_decimalEditingTrashGoalsTransferWidget(){
         rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
         idle();rule.runOnUiThread{vm.clearMessage()};idle()
-        click("+ Доход")
+        click("Добавить операцию");click("+ Доход")
         fill("Сумма, ₽","1000")
         click("Сохранить операцию");idle{vm.data.value.transactions.size==1}
         assertEquals(TransactionType.INCOME,vm.data.value.transactions.single().type)
-        click("+ Расход")
+        click("Добавить операцию");click("+ Расход")
         fill("Сумма, ₽","500,50")
         fill("Заметка","Магазин — тест")
         click("Сохранить операцию");idle{vm.data.value.transactions.size==2}
@@ -120,7 +120,7 @@ class BudgetUiInstrumentedTest {
         rule.onNodeWithText("Удалить").performScrollTo().performClick();rule.waitForIdle()
         rule.onAllNodesWithText("Удалить").onLast().performClick();idle{vm.data.value.goals.isEmpty()}
         assertTrue(vm.data.value.goals.isEmpty());assertEquals(50000L,vm.data.value.savings)
-        click("Главная");click("+ Расход");click("Перевод")
+        click("Главная");click("Добавить операцию");click("+ Расход");click("Перевод")
         fill("Сумма, ₽","100")
         click("Сохранить операцию");idle{vm.data.value.transactions.size==3}
         assertEquals(24925L,BudgetEngine.available(vm.data.value))

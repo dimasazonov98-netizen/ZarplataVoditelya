@@ -1,14 +1,20 @@
-@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class,androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.duobudget.app.ui
 
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +23,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -27,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -44,6 +56,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.delay
 
 private val moneyFormat=NumberFormat.getNumberInstance(Locale.forLanguageTag("ru-RU")).apply{minimumFractionDigits=0;maximumFractionDigits=2}
 private fun rub(n:Long)=moneyFormat.format(BigDecimal.valueOf(n,2))+" ₽"
@@ -52,6 +65,54 @@ private fun typeName(t:TransactionType)=when(t){TransactionType.EXPENSE->"Рас
 private fun syncLabel(s:SyncState)=when(s){SyncState.DISABLED->"На телефоне";SyncState.READY->"Ожидание";SyncState.SYNCING->"Обновление…";SyncState.SYNCED->"Обновлено";SyncState.ERROR->"Нет связи"}
 
 private val LocalBudgetUnlocked=compositionLocalOf{true}
+
+@Composable
+private fun BotanicalBackground(content:@Composable BoxScope.()->Unit){
+    val dark=isSystemInDarkTheme()
+    val motion=rememberInfiniteTransition(label="botanical-background")
+    val sway by motion.animateFloat(-8f,8f,infiniteRepeatable(tween(6500,easing=FastOutSlowInEasing),RepeatMode.Reverse),label="leaf-sway")
+    val top=if(dark)Color(0xFF4F4438)else Color(0xFFE2CBA9)
+    val middle=if(dark)Color(0xFF3E493D)else Color(0xFF9EAA90)
+    val bottom=if(dark)Color(0xFF202820)else Color(0xFF697660)
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(top,middle,bottom)))){
+        Canvas(Modifier.matchParentSize().graphicsLayer{translationY=sway}){
+            drawCircle(if(dark)Color(0x337F654F)else Color(0x55FFE0B4),size.minDimension*.34f,center=androidx.compose.ui.geometry.Offset(size.width*.58f,size.height*.24f))
+            fun leaf(x:Float,y:Float,w:Float,h:Float,angle:Float,color:Color){
+                val center=androidx.compose.ui.geometry.Offset(x,y)
+                rotate(angle,center){drawOval(color,topLeft=androidx.compose.ui.geometry.Offset(x-w/2,y-h/2),size=androidx.compose.ui.geometry.Size(w,h))}
+            }
+            val c1=if(dark)Color(0xAA6F8265)else Color(0xCC718168)
+            val c2=if(dark)Color(0x997F9271)else Color(0xBBAEB991)
+            leaf(size.width*.94f,size.height*.14f,size.width*.36f,size.height*.07f,-28f,c1)
+            leaf(size.width*.82f,size.height*.24f,size.width*.30f,size.height*.06f,22f,c2)
+            leaf(size.width*.06f,size.height*.53f,size.width*.42f,size.height*.08f,28f,c1)
+            leaf(size.width*.16f,size.height*.82f,size.width*.34f,size.height*.065f,-18f,c2)
+        }
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.White.copy(alpha=if(dark).02f else .06f),Color.Transparent,Color.Black.copy(alpha=if(dark).18f else .05f)))))
+        content()
+    }
+}
+
+@Composable
+private fun GlassCard(modifier:Modifier=Modifier,content:@Composable ColumnScope.()->Unit){
+    val dark=isSystemInDarkTheme()
+    Card(
+        modifier=modifier,
+        shape=RoundedCornerShape(22.dp),
+        colors=CardDefaults.cardColors(containerColor=if(dark)Color(0x99332B27)else Color(0x70FFFCF7)),
+        border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.72f)),
+        elevation=CardDefaults.cardElevation(defaultElevation=0.dp),
+        content=content
+    )
+}
+
+@Composable
+private fun Enter(index:Int,content:@Composable ()->Unit){
+    var visible by remember{mutableStateOf(false)}
+    LaunchedEffect(Unit){delay(index*65L);visible=true}
+    AnimatedVisibility(visible=visible,enter=fadeIn(tween(420))+slideInVertically(tween(480)){it/5}){content()}
+}
+
 @Composable private fun AppDialog(
     onDismissRequest:()->Unit,
     title:@Composable ()->Unit,
@@ -68,7 +129,6 @@ private val LocalBudgetUnlocked=compositionLocalOf{true}
 
 @Composable
 fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=viewModel()) {
-    val dark by vm.darkTheme.collectAsStateWithLifecycle()
     val error by vm.storageError.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -81,46 +141,98 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         vm.setForeground(unlocked&&owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
         onDispose{owner.lifecycle.removeObserver(observer);vm.setForeground(false)}
     }
-    DuoBudgetTheme(darkTheme=dark){
+    DuoBudgetTheme{
         CompositionLocalProvider(LocalBudgetUnlocked provides unlocked){
-        if(error.isNotBlank()){
-            Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
-                Text("Восстановление бюджета",style=MaterialTheme.typography.headlineSmall)
-                Text(error)
-                BackupPanel(vm,recovery=true)
-            }
-        } else {
-            val nav=rememberNavController()
-            val entry by nav.currentBackStackEntryAsState()
-            val route=entry?.destination?.route?:"home"
-            val tabs=listOf(Triple("home","Главная","⌂"),Triple("history","Операции","≡"),Triple("budget","Бюджет","◫"),Triple("savings","Цели","◇"),Triple("settings","Ещё","⋯"))
-            LaunchedEffect(openExpenseRequest){if(openExpenseRequest>0)nav.navigate("entry"){launchSingleTop=true}}
-            Scaffold(
-                modifier=Modifier.testTag("app"),
-                bottomBar={if(route in tabs.map{it.first})NavigationBar{tabs.forEach{t->NavigationBarItem(selected=route==t.first,onClick={nav.navigate(t.first){popUpTo("home"){saveState=true};launchSingleTop=true;restoreState=true}},icon={Text(t.third)},label={Text(t.second)})}}}
-            ){padding->
-                Box(Modifier.fillMaxSize().padding(padding)){
-                    NavHost(nav,startDestination="home"){
-                        composable("home"){HomeScreen(vm,{nav.navigate("entry")},{nav.navigate("entry/INCOME")},{nav.navigate("accounts")},{nav.navigate("settings")})}
-                        composable("history"){HistoryScreen(vm){nav.navigate("edit/"+it)}}
-                        composable("budget"){BudgetScreen(vm)}
-                        composable("savings"){SavingsScreen(vm)}
-                        composable("settings"){SettingsScreen(vm){nav.navigate("accounts")}}
-                        composable("accounts"){AccountsScreen(vm){nav.popBackStack()}}
-                        composable("entry"){TransactionForm(vm,null,TransactionType.EXPENSE){nav.popBackStack()}}
-                        composable("entry/{type}"){e->TransactionForm(vm,null,runCatching{TransactionType.valueOf(e.arguments?.getString("type").orEmpty())}.getOrDefault(TransactionType.EXPENSE)){nav.popBackStack()}}
-                        composable("edit/{id}"){e->
-                            val data by vm.data.collectAsStateWithLifecycle()
-                            val t=data.transactions.firstOrNull{it.id==e.arguments?.getString("id")}
-                            if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick={nav.popBackStack()}){Text("Назад")}}
-                            else TransactionForm(vm,t,t.type){nav.popBackStack()}
+        BotanicalBackground{
+            if(error.isNotBlank()){
+                Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
+                    Text("Восстановление бюджета",style=MaterialTheme.typography.headlineSmall)
+                    Text(error)
+                    BackupPanel(vm,recovery=true)
+                }
+            } else {
+                val nav=rememberNavController()
+                val entry by nav.currentBackStackEntryAsState()
+                val route=entry?.destination?.route?:"home"
+                val tabs=listOf(Triple("home","Главная","⌂"),Triple("history","Операции","↕"),Triple("savings","Цели","◎"),Triple("settings","Ещё","•••"))
+                val mainRoutes=tabs.map{it.first}.toSet()+"budget"
+                var addSheet by rememberSaveable{mutableStateOf(false)}
+                LaunchedEffect(openExpenseRequest){if(openExpenseRequest>0)nav.navigate("entry"){launchSingleTop=true}}
+                Scaffold(
+                    modifier=Modifier.testTag("app"),
+                    containerColor=Color.Transparent,
+                    bottomBar={if(route in mainRoutes)GlassBottomBar(route,tabs){destination->nav.navigate(destination){popUpTo("home"){saveState=true};launchSingleTop=true;restoreState=true}}},
+                    floatingActionButton={if(route in mainRoutes)FloatingActionButton(
+                        onClick={addSheet=true},
+                        modifier=Modifier.size(62.dp).semantics{contentDescription="Добавить операцию"},
+                        shape=CircleShape,
+                        containerColor=MaterialTheme.colorScheme.primary,
+                        contentColor=MaterialTheme.colorScheme.onPrimary
+                    ){Text("+",fontSize=30.sp,fontWeight=FontWeight.Light)}},
+                    floatingActionButtonPosition=FabPosition.Center
+                ){padding->
+                    Box(Modifier.fillMaxSize().padding(padding)){
+                        NavHost(nav,startDestination="home"){
+                            composable("home"){HomeScreen(vm,{nav.navigate("accounts")},{nav.navigate("settings")},{nav.navigate("budget")})}
+                            composable("history"){HistoryScreen(vm){nav.navigate("edit/"+it)}}
+                            composable("budget"){BudgetScreen(vm)}
+                            composable("savings"){SavingsScreen(vm)}
+                            composable("settings"){SettingsScreen(vm){nav.navigate("accounts")}}
+                            composable("accounts"){AccountsScreen(vm){nav.popBackStack()}}
+                            composable("entry"){TransactionForm(vm,null,TransactionType.EXPENSE){nav.popBackStack()}}
+                            composable("entry/{type}"){e->TransactionForm(vm,null,runCatching{TransactionType.valueOf(e.arguments?.getString("type").orEmpty())}.getOrDefault(TransactionType.EXPENSE)){nav.popBackStack()}}
+                            composable("edit/{id}"){e->
+                                val data by vm.data.collectAsStateWithLifecycle()
+                                val t=data.transactions.firstOrNull{it.id==e.arguments?.getString("id")}
+                                if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick={nav.popBackStack()}){Text("Назад")}}
+                                else TransactionForm(vm,t,t.type){nav.popBackStack()}
+                            }
                         }
+                        if(busy)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
                     }
-                    if(busy)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
+                }
+                if(addSheet)ModalBottomSheet(onDismissRequest={addSheet=false},containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.96f)){
+                    Text("Добавить операцию",Modifier.padding(horizontal=24.dp,vertical=8.dp),style=MaterialTheme.typography.titleLarge)
+                    listOf(
+                        Triple(TransactionType.EXPENSE,"+ Расход","−"),Triple(TransactionType.INCOME,"+ Доход","+") ,
+                        Triple(TransactionType.TRANSFER,"Перевод","↔"),Triple(TransactionType.REFUND,"Возврат","↩"),Triple(TransactionType.CASHBACK,"Кэшбэк","◇")
+                    ).forEach{(type,label,icon)->ListItem(
+                        headlineContent={Text(label,fontWeight=FontWeight.SemiBold)},leadingContent={Text(icon,fontSize=22.sp)},
+                        modifier=Modifier.clickable{addSheet=false;nav.navigate("entry/"+type.name)}
+                    )}
+                    Spacer(Modifier.height(20.dp))
                 }
             }
         }
         if(message.isNotBlank())AppDialog(onDismissRequest=vm::clearMessage,title={Text("DuoBudget")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearMessage){Text("Понятно")}})
+        }
+    }
+}
+
+@Composable
+private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,onNavigate:(String)->Unit){
+    val dark=isSystemInDarkTheme()
+    Surface(
+        modifier=Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),
+        shape=RoundedCornerShape(28.dp),
+        color=if(dark)Color(0xCC302824)else Color(0xB8FFFDF8),
+        border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.8f)),
+        shadowElevation=10.dp,
+        tonalElevation=0.dp
+    ){
+        Row(Modifier.fillMaxWidth().height(66.dp).padding(5.dp),verticalAlignment=Alignment.CenterVertically){
+            tabs.forEachIndexed{index,t->
+                if(index==2)Spacer(Modifier.width(66.dp))
+                val selected=route==t.first
+                val foreground=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(19.dp)).background(if(selected)MaterialTheme.colorScheme.primary else Color.Transparent).clickable{onNavigate(t.first)}.padding(vertical=6.dp),
+                    horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center
+                ){
+                    Text(t.third,color=foreground,fontSize=18.sp,lineHeight=18.sp)
+                    Text(t.second,color=foreground,style=MaterialTheme.typography.bodySmall,maxLines=1)
+                }
+            }
         }
     }
 }
@@ -139,44 +251,60 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     }
 }
 @Composable private fun Metric(label:String,value:Long,modifier:Modifier=Modifier){
-    Card(modifier){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+    GlassCard(modifier){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
         Text(label,color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium)
         Text(rub(value),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=if(value<0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
     }}
 }
-@Composable private fun Empty(text:String){Card(Modifier.fillMaxWidth()){Text(text,Modifier.padding(18.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+@Composable private fun CompactMetric(label:String,value:Long,modifier:Modifier=Modifier){
+    GlassCard(modifier){Column(Modifier.padding(horizontal=10.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+        Text(label.uppercase(Locale.ROOT),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall,maxLines=1)
+        Text(rub(value),fontSize=13.sp,fontWeight=FontWeight.Bold,color=if(value<0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,maxLines=1)
+    }}
+}
+@Composable private fun Empty(text:String){GlassCard(Modifier.fillMaxWidth()){Text(text,Modifier.padding(18.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)}}
 
-@Composable private fun HomeScreen(vm:AppViewModel,onExpense:()->Unit,onIncome:()->Unit,onAccounts:()->Unit,onSettings:()->Unit){
+@Composable private fun HomeScreen(vm:AppViewModel,onAccounts:()->Unit,onSettings:()->Unit,onBudget:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle();val sync by vm.syncState.collectAsStateWithLifecycle()
     val expenses=BudgetEngine.netExpenses(d,month);val income=BudgetEngine.incomes(d,month);val available=BudgetEngine.available(d)
-    LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-        item {Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Title("Семейный бюджет");Text(d.myName+" + "+d.partnerName,color=MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(onClick=onSettings){Text(syncLabel(sync))}}}
-        item{MonthPicker(vm,month)}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Metric("Доходы",income,Modifier.weight(1f));Metric("Расходы − возвраты",expenses,Modifier.weight(1f))}}
-        item{Metric("Доступно сейчас",available,Modifier.fillMaxWidth())}
-        item{Text("Остатки всех счетов за вычетом накоплений и целей.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-        item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Text("Лимит месяца",fontWeight=FontWeight.SemiBold)
+    val today=LocalDate.now();val days=(today.lengthOfMonth()-today.dayOfMonth+1).coerceAtLeast(1)
+    val daily=if(d.budget>0)(d.budget-expenses).coerceAtLeast(0)/days else 0
+    val targetProgress=if(d.budget>0)(expenses.toFloat()/d.budget).coerceIn(0f,1f)else 0f
+    val progress by animateFloatAsState(targetProgress,tween(900,easing=FastOutSlowInEasing),label="budget-progress")
+    LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(horizontal=16.dp,vertical=14.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        item{Enter(0){Row(verticalAlignment=Alignment.CenterVertically){
+            Column(Modifier.weight(1f)){Text("Добрый день",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Title("Наш бюджет");Text(d.myName+" + "+d.partnerName,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+            Surface(onClick=onSettings,shape=CircleShape,color=MaterialTheme.colorScheme.surfaceContainer,border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)){Text(if(sync==SyncState.SYNCING)"↻"else"⌂",Modifier.padding(12.dp),fontSize=19.sp)}
+        }}}
+        item{Enter(1){GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+            Text("Доступно сейчас",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(rub(available),fontSize=36.sp,lineHeight=41.sp,fontWeight=FontWeight.ExtraBold,color=if(available<0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            Text("Общий остаток после накоплений и целей",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(syncLabel(sync),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
+            TextButton(onClick=onAccounts,contentPadding=PaddingValues(0.dp)){Text("Счета и остатки  ›")}
+        }}}}
+        item{Enter(2){Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){CompactMetric("Доходы",income,Modifier.weight(1f));CompactMetric("Расходы",expenses,Modifier.weight(1f));CompactMetric("На день",daily,Modifier.weight(1f))}}}
+        item{Enter(3){GlassCard(Modifier.fillMaxWidth().clickable(onClick=onBudget)){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("Бюджет месяца",fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));Text("Подробнее  ›",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)}
+            MonthPicker(vm,month)
             if(d.budget>0){
-                LinearProgressIndicator(progress={(expenses.toFloat()/d.budget).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
+                LinearProgressIndicator(progress={progress},modifier=Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),trackColor=MaterialTheme.colorScheme.onSurface.copy(alpha=.12f))
                 Text(rub(expenses)+" из "+rub(d.budget))
                 Text(if(expenses>d.budget)"Превышение: "+rub(expenses-d.budget) else "Осталось: "+rub(d.budget-expenses),color=if(expenses>d.budget)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-                if(month==YearMonth.now()){val today=LocalDate.now();val days=today.lengthOfMonth()-today.dayOfMonth+1;Text("На день до конца месяца: "+rub((d.budget-expenses).coerceAtLeast(0)/days))}
-            }else Text("Задай лимит во вкладке «Бюджет»")
-            if(month==YearMonth.now()&&expenses>0){val today=LocalDate.now();val projection=(BigDecimal.valueOf(expenses)*BigDecimal.valueOf(today.lengthOfMonth().toLong())/BigDecimal.valueOf(today.dayOfMonth.toLong())).toLong();Text("Прогноз расходов: "+rub(projection),style=MaterialTheme.typography.bodySmall)}
-        }}}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Button(onClick=onExpense,modifier=Modifier.weight(1f).height(52.dp)){Text("+ Расход")};OutlinedButton(onClick=onIncome,modifier=Modifier.weight(1f).height(52.dp)){Text("+ Доход")}}}
-        item{OutlinedButton(onClick=onAccounts,modifier=Modifier.fillMaxWidth()){Text("Счета и начальные остатки")}}
-        item{Metric("Всего накоплено, включая цели",BudgetEngine.savingsTotal(d),Modifier.fillMaxWidth())}
-        item{Text("Последние операции",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}
+                if(month==YearMonth.now())Text("Можно потратить сегодня: "+rub(daily),fontWeight=FontWeight.SemiBold)
+            }else Text("Нажми, чтобы задать месячный лимит")
+            if(month==YearMonth.now()&&expenses>0){val projection=(BigDecimal.valueOf(expenses)*BigDecimal.valueOf(today.lengthOfMonth().toLong())/BigDecimal.valueOf(today.dayOfMonth.toLong())).toLong();Text("Прогноз расходов: "+rub(projection),style=MaterialTheme.typography.bodySmall)}
+        }}}}
+        item{Enter(4){Metric("Всего накоплено, включая цели",BudgetEngine.savingsTotal(d),Modifier.fillMaxWidth())}}
+        item{Text("Последние операции",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onBackground)}
         val recent=d.transactions.filterNot{it.deleted}.sortedByDescending{it.createdAt}.take(5)
-        if(recent.isEmpty())item{Empty("Начни с остатков счетов и добавь первый доход или расход.")}
+        if(recent.isEmpty())item{Empty("Нажми круглую кнопку «+», чтобы добавить первую операцию.")}
         items(recent,key={it.id}){t->TransactionCard(d,t)}
     }
 }
 @Composable private fun TransactionCard(d:BudgetData,t:MoneyTransaction,onEdit:(()->Unit)?=null,onDelete:(()->Unit)?=null,onRestore:(()->Unit)?=null){
     val prefix=when(t.type){TransactionType.EXPENSE->"−";TransactionType.TRANSFER->"↔ ";else->"+"}
-    Card(Modifier.fillMaxWidth()){
+    GlassCard(Modifier.fillMaxWidth()){
         Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(5.dp)){
             Row(verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(t.category,fontWeight=FontWeight.SemiBold);Text(typeName(t.type),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Text(prefix+rub(t.amount),fontWeight=FontWeight.Bold)}
             if(t.note.isNotBlank())Text(t.note,maxLines=4,overflow=TextOverflow.Ellipsis)
@@ -273,7 +401,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         item{Button(onClick={vm.setCategoryLimit(category,parsedLimit!!)},enabled=!busy&&category.isNotBlank()&&parsedLimit!=null&&parsedLimit>=0,modifier=Modifier.fillMaxWidth()){Text("Сохранить лимит категории")}}
         items(d.categoryLimits.toList(),key={it.first}){(c,l)->
             val spent=BudgetEngine.netExpenses(d,month,c)
-            Card(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+            GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(14.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
                 Text(c,fontWeight=FontWeight.SemiBold);Text(rub(spent)+" из "+rub(l))
                 LinearProgressIndicator(progress={(spent.toFloat()/l).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
                 if(spent>=l*8/10)Text(if(spent>l)"Лимит превышен"else"Лимит почти исчерпан",color=MaterialTheme.colorScheme.error)
@@ -296,7 +424,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         item{HorizontalDivider()}
         item{Row(verticalAlignment=Alignment.CenterVertically){Text("Совместные цели",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));TextButton(onClick={goalDialog=true}){Text("+ Цель")}}}
         if(d.goals.isEmpty())item{Empty("Добавь цель: отпуск, машина или подушка безопасности.")}
-        items(d.goals,key={it.id}){g->GoalCard(vm,g,d.savings){delete=g}}
+        items(d.goals,key={it.id}){g->GoalGlassCard(vm,g,d.savings){delete=g}}
     }
     if(withdraw)AppDialog(onDismissRequest={withdraw=false},title={Text("Взять из накоплений?")},text={Text(rub(amount?:0)+" снова войдёт в доступные деньги.")},confirmButton={TextButton(onClick={vm.withdrawSavings(amount?:0);value="";withdraw=false}){Text("Подтвердить")}},dismissButton={TextButton(onClick={withdraw=false}){Text("Отмена")}})
     if(goalDialog){
@@ -306,11 +434,11 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     }
     delete?.let{g->AppDialog(onDismissRequest={delete=null},title={Text("Удалить цель?")},text={Text(rub(g.currentAmount)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.deleteGoal(g.id);delete=null}){Text("Удалить")}},dismissButton={TextButton(onClick={delete=null}){Text("Отмена")}})}
 }
-@Composable private fun GoalCard(vm:AppViewModel,g:Goal,savings:Long,onDelete:()->Unit){
+@Composable private fun GoalGlassCard(vm:AppViewModel,g:Goal,savings:Long,onDelete:()->Unit){
     val busy by vm.busy.collectAsStateWithLifecycle()
     var value by rememberSaveable(g.id){mutableStateOf("")};var returnMoney by remember{mutableStateOf(false)}
     val amount=Money.parse(value);val transfer=if(amount==null)0 else minOf(amount,savings,g.targetAmount-g.currentAmount)
-    Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+    GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         Row(verticalAlignment=Alignment.CenterVertically){Text(g.name,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));TextButton(onClick=onDelete){Text("Удалить")}}
         Text(rub(g.currentAmount)+" из "+rub(g.targetAmount))
         LinearProgressIndicator(progress={(g.currentAmount.toFloat()/g.targetAmount).coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
@@ -331,7 +459,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         item{Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){Title("Счета")};TextButton(onClick=onBack){Text("Назад")}}}
         item{Text("Начальный остаток — деньги на счёте до первой записанной операции. Архивный счёт остаётся в истории и общем балансе.",style=MaterialTheme.typography.bodySmall)}
         item{Button(onClick={create=true},modifier=Modifier.fillMaxWidth()){Text("+ Добавить счёт")}}
-        items(d.accounts,key={it.id}){a->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+        items(d.accounts,key={it.id}){a->GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Text(a.name+(if(a.archived)" · Архив"else""),fontWeight=FontWeight.SemiBold)
             Text(rub(BudgetEngine.balance(d,a.id)),style=MaterialTheme.typography.titleLarge)
             Text("Начальный остаток: "+rub(a.openingBalance),style=MaterialTheme.typography.bodySmall)
@@ -379,7 +507,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     }
 }
 @Composable private fun SettingsScreen(vm:AppViewModel,onAccounts:()->Unit){
-    val d by vm.data.collectAsStateWithLifecycle();val dark by vm.darkTheme.collectAsStateWithLifecycle();val session by vm.session.collectAsStateWithLifecycle()
+    val d by vm.data.collectAsStateWithLifecycle();val session by vm.session.collectAsStateWithLifecycle()
     val sync by vm.syncState.collectAsStateWithLifecycle();val syncMessage by vm.syncMessage.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
     val changes by vm.changes.collectAsStateWithLifecycle();val members by vm.members.collectAsStateWithLifecycle();val pending by vm.pending.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle()
     val context=LocalContext.current
@@ -390,7 +518,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val csv=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->if(uri!=null)vm.exportCsv(uri,month)}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         Title("Ещё")
-        Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){Text("Тёмная тема",fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));Switch(dark,vm::setDark,enabled=!busy)}}
+        GlassCard(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text("Оформление",fontWeight=FontWeight.SemiBold);Text("Светлая или тёмная тема включается автоматически вместе с темой телефона.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         Text("Профили",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
         OutlinedTextField(myName,{myName=it.take(60)},label={Text("Моё имя")},singleLine=true,modifier=Modifier.fillMaxWidth())
         OutlinedTextField(partnerName,{partnerName=it.take(60)},label={Text("Имя партнёра")},singleLine=true,modifier=Modifier.fillMaxWidth())
@@ -398,7 +526,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         OutlinedButton(onClick=onAccounts,modifier=Modifier.fillMaxWidth()){Text("Счета и начальные остатки")}
         HorizontalDivider()
         Text("Два телефона",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-        Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(syncLabel(sync),fontWeight=FontWeight.SemiBold);Text(syncMessage);if(session!=null){Text("Подключено телефонов: "+members);if(pending>0)Text("Ожидает отправки: "+pending)}}}
+        GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(syncLabel(sync),fontWeight=FontWeight.SemiBold);Text(syncMessage);if(session!=null){Text("Подключено телефонов: "+members);if(pending>0)Text("Ожидает отправки: "+pending)}}}
         if(session==null){
             Text("После подключения данные семьи отправляются на сервер. Каждый меняет только свои операции. Без интернета изменения сохраняются на телефоне.",style=MaterialTheme.typography.bodySmall)
             Button(onClick={joining=false;connectConfirmation=true},enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("Создать общий бюджет")}
@@ -426,7 +554,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
         HorizontalDivider()
         Text("Последние изменения",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
         if(changes.isEmpty())Empty("Изменений пока нет")
-        changes.take(20).forEach{c->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(c.action,fontWeight=FontWeight.SemiBold);if(c.description.isNotBlank())Text(c.description);Text(c.changedAt.format(DateTimeFormatter.ofPattern("dd.MM.uuuu HH:mm")),style=MaterialTheme.typography.bodySmall)}}}
+        changes.take(20).forEach{c->GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(c.action,fontWeight=FontWeight.SemiBold);if(c.description.isNotBlank())Text(c.description);Text(c.changedAt.format(DateTimeFormatter.ofPattern("dd.MM.uuuu HH:mm")),style=MaterialTheme.typography.bodySmall)}}}
         Text("DuoBudget "+BuildConfig.VERSION_NAME+" · Семейный бюджет",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if(connectConfirmation)AppDialog(onDismissRequest={connectConfirmation=false},title={Text(if(joining)"Подключить телефон?"else"Создать общий бюджет?")},text={Text("Счета, операции, накопления, цели и имена будут переданы сервису по HTTPS. Серверное хранение без сквозного шифрования: администратор технически может прочитать данные. При подключении по коду локальные операции добавятся к бюджету партнёра. Удалить данные с сервера можно в этом разделе.")},confirmButton={TextButton(onClick={connectConfirmation=false;if(joining)vm.joinFamily(code)else vm.createFamily()}){Text("Подключить")}},dismissButton={TextButton(onClick={connectConfirmation=false}){Text("Отмена")}})
