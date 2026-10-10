@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -29,9 +33,9 @@ private fun themeName(style: ThemeStyle) = when (style) {
     ThemeStyle.AURORA -> "Аврора"
     ThemeStyle.SAGE -> "Шалфей"
     ThemeStyle.MATERIAL -> "Material"
-    ThemeStyle.LUXURY -> "Золото"
+    ThemeStyle.LUXURY -> "Золотой песок"
     ThemeStyle.CORAL -> "Коралл"
-    ThemeStyle.CYBER -> "Кибер"
+    ThemeStyle.CYBER -> "Океан"
 }
 
 private fun themePreview(style: ThemeStyle) = when (style) {
@@ -42,9 +46,9 @@ private fun themePreview(style: ThemeStyle) = when (style) {
     ThemeStyle.AURORA -> Color(0xFF5267E9)
     ThemeStyle.SAGE -> Color(0xFF64836B)
     ThemeStyle.MATERIAL -> Color(0xFF6E56CF)
-    ThemeStyle.LUXURY -> Color(0xFFB88A33)
+    ThemeStyle.LUXURY -> Color(0xFFD0A44A)
     ThemeStyle.CORAL -> Color(0xFFFF5F52)
-    ThemeStyle.CYBER -> Color(0xFF00A7D8)
+    ThemeStyle.CYBER -> Color(0xFF1EB8E8)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -52,6 +56,7 @@ private fun themePreview(style: ThemeStyle) = when (style) {
 internal fun AppearanceSettingsContent(context: Context) {
     val mode = ThemePreferences.currentMode
     val style = ThemePreferences.currentStyle
+    val animated = ThemePreferences.animatedBackground
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Оформление", fontWeight = FontWeight.SemiBold)
@@ -80,12 +85,37 @@ internal fun AppearanceSettingsContent(context: Context) {
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text("Анимированный фон", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (animated) "Живой фон включён" else "Используется статичный фон",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = animated,
+                onCheckedChange = { ThemePreferences.setAnimatedBackground(context, it) }
+            )
+        }
+
         Text(
             "Яркость",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             FilterChip(
                 selected = mode == ThemeMode.SYSTEM,
                 onClick = { ThemePreferences.set(context, ThemeMode.SYSTEM) },
@@ -104,7 +134,7 @@ internal fun AppearanceSettingsContent(context: Context) {
         }
 
         Text(
-            "Тема и яркость сохраняются на телефоне и применяются ко всему интерфейсу.",
+            "Тема, яркость и анимация сохраняются на телефоне и применяются ко всему интерфейсу.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
