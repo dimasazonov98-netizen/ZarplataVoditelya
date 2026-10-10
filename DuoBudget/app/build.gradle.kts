@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10105
-        versionName = "1.1.5"
+        versionCode = 10106
+        versionName = "1.1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
