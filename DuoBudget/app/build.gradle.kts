@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10104
-        versionName = "1.1.4"
+        versionCode = 10105
+        versionName = "1.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
@@ -48,8 +48,42 @@ val patchDuoBudgetUi = tasks.register("patchDuoBudgetUi") {
         val newAppearance = "GlassCard(Modifier.fillMaxWidth()){AppearanceSettingsContent(context)}"
         if (text.contains(oldAppearance)) text = text.replace(oldAppearance, newAppearance)
 
+        val backgroundPattern = Regex("""(?s)@Composable\s+private fun BotanicalBackground\(content:@Composable BoxScope\.\(\)->Unit\)\{.*?\n\}\n\n@Composable\nprivate fun GlassCard""")
+        if (backgroundPattern.containsMatchIn(text)) {
+            text = backgroundPattern.replace(
+                text,
+                """@Composable
+private fun BotanicalBackground(content:@Composable BoxScope.()->Unit){
+    com.duobudget.app.ui.theme.DuoBudgetBackground(content)
+}
+
+@Composable
+private fun GlassCard"""
+            )
+        }
+
+        text = text.replace(
+            "colors=CardDefaults.cardColors(containerColor=if(dark)Color(0x99332B27)else Color(0x70FFFCF7)),",
+            "colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).84f else .76f)),"
+        )
+        text = text.replace(
+            "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.72f)),",
+            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).72f else .62f)),"
+        )
+        text = text.replace(
+            "color=if(dark)Color(0xCC302824)else Color(0xB8FFFDF8),",
+            "color=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).94f else .90f),"
+        )
+        text = text.replace(
+            "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.8f)),",
+            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).78f else .68f)),"
+        )
+
         check(!text.contains("Surface(onClick=onSettings")) { "Home header settings button was not removed" }
         check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
+        check(text.contains("DuoBudgetBackground(content)")) { "Themed background patch was not applied" }
+        check(text.contains("surfaceContainer.copy(alpha=if(dark).84f else .76f)")) { "Themed card patch was not applied" }
+        check(text.contains("surfaceContainer.copy(alpha=if(dark).94f else .90f)")) { "Themed bottom bar patch was not applied" }
         uiFile.writeText(text)
     }
 }
