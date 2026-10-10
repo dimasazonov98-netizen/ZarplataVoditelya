@@ -1,9 +1,13 @@
 package com.duobudget.app
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.util.Base64
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.duobudget.app.ui.theme.ThemeMode
 import com.duobudget.app.ui.theme.ThemePreferences
 import com.duobudget.app.ui.theme.ThemeStyle
 import org.junit.Assert.assertEquals
@@ -11,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 
 @RunWith(AndroidJUnit4::class)
 class ThemeLayoutInstrumentedTest {
@@ -43,6 +48,42 @@ class ThemeLayoutInstrumentedTest {
         assertEquals("$label bottom moved", expected.bottom, actual.bottom, 1f)
     }
 
+    private fun recommendedMode(style: ThemeStyle) = when (style) {
+        ThemeStyle.BOTANICAL, ThemeStyle.NEON, ThemeStyle.LUXURY, ThemeStyle.CYBER -> ThemeMode.LIGHT
+        ThemeStyle.MINIMAL, ThemeStyle.FAMILY, ThemeStyle.AURORA, ThemeStyle.SAGE, ThemeStyle.MATERIAL, ThemeStyle.CORAL -> ThemeMode.DARK
+    }
+
+    private fun previewName(style: ThemeStyle) = when (style) {
+        ThemeStyle.BOTANICAL -> "01-classic-light"
+        ThemeStyle.MINIMAL -> "02-classic-dark"
+        ThemeStyle.NEON -> "03-mountains"
+        ThemeStyle.FAMILY -> "04-forest"
+        ThemeStyle.AURORA -> "05-city"
+        ThemeStyle.SAGE -> "06-sunset"
+        ThemeStyle.MATERIAL -> "07-ocean"
+        ThemeStyle.LUXURY -> "08-minimal"
+        ThemeStyle.CORAL -> "09-purple-night"
+        ThemeStyle.CYBER -> "10-golden-sand"
+    }
+
+    private fun shot(name: String) {
+        rule.runOnUiThread {
+            val view = rule.activity.window.decorView
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            val bytes = ByteArrayOutputStream().use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                output.toByteArray()
+            }
+            bitmap.recycle()
+            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            val parts = encoded.chunked(2048)
+            parts.forEachIndexed { index, part ->
+                android.util.Log.i("DuoBudgetThemeQA", "THEMEIMAGE|$name|$index|${parts.size}|$part")
+            }
+        }
+    }
+
     @Test
     fun allThemesAndAnimationKeepPrimaryLayoutStable() {
         rule.waitForIdle()
@@ -51,6 +92,7 @@ class ThemeLayoutInstrumentedTest {
         ThemeStyle.entries.forEach { style ->
             rule.runOnUiThread {
                 ThemePreferences.setStyle(rule.activity, style)
+                ThemePreferences.set(rule.activity, recommendedMode(style))
                 ThemePreferences.setAnimatedBackground(rule.activity, true)
             }
             rule.waitForIdle()
@@ -63,6 +105,7 @@ class ThemeLayoutInstrumentedTest {
                     left.right <= right.left + 1f
                 )
             }
+            shot(previewName(style))
 
             rule.runOnUiThread {
                 ThemePreferences.setAnimatedBackground(rule.activity, false)
@@ -81,16 +124,16 @@ class ThemeLayoutInstrumentedTest {
         rule.waitForIdle()
 
         val required = listOf(
-            "Ботаника",
-            "Минимализм",
-            "Неон",
-            "Семейная",
-            "Аврора",
-            "Шалфей",
-            "Material",
-            "Золотой песок",
-            "Коралл",
+            "Классическая светлая",
+            "Классическая тёмная",
+            "Горные пейзажи",
+            "Лесная природа",
+            "Городской шик",
+            "Закат",
             "Океан",
+            "Минимализм",
+            "Фиолетовая ночь",
+            "Золотой песок",
             "Анимированный фон",
             "Система",
             "Светлая",
