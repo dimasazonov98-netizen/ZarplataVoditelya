@@ -26,29 +26,29 @@ import com.duobudget.app.ui.theme.ThemePreferences
 import com.duobudget.app.ui.theme.ThemeStyle
 
 private fun themeName(style: ThemeStyle) = when (style) {
-    ThemeStyle.BOTANICAL -> "Ботаника"
-    ThemeStyle.MINIMAL -> "Минимализм"
-    ThemeStyle.NEON -> "Неон"
-    ThemeStyle.FAMILY -> "Семейная"
-    ThemeStyle.AURORA -> "Аврора"
-    ThemeStyle.SAGE -> "Шалфей"
-    ThemeStyle.MATERIAL -> "Material"
-    ThemeStyle.LUXURY -> "Золотой песок"
-    ThemeStyle.CORAL -> "Коралл"
-    ThemeStyle.CYBER -> "Океан"
+    ThemeStyle.BOTANICAL -> "Классическая светлая"
+    ThemeStyle.MINIMAL -> "Классическая тёмная"
+    ThemeStyle.NEON -> "Горные пейзажи"
+    ThemeStyle.FAMILY -> "Лесная природа"
+    ThemeStyle.AURORA -> "Городской шик"
+    ThemeStyle.SAGE -> "Закат"
+    ThemeStyle.MATERIAL -> "Океан"
+    ThemeStyle.LUXURY -> "Минимализм"
+    ThemeStyle.CORAL -> "Фиолетовая ночь"
+    ThemeStyle.CYBER -> "Золотой песок"
 }
 
 private fun themePreview(style: ThemeStyle) = when (style) {
-    ThemeStyle.BOTANICAL -> Color(0xFFA95036)
-    ThemeStyle.MINIMAL -> Color(0xFF2F8F4E)
-    ThemeStyle.NEON -> Color(0xFF17CFA7)
-    ThemeStyle.FAMILY -> Color(0xFFC95D3D)
-    ThemeStyle.AURORA -> Color(0xFF5267E9)
-    ThemeStyle.SAGE -> Color(0xFF64836B)
-    ThemeStyle.MATERIAL -> Color(0xFF6E56CF)
-    ThemeStyle.LUXURY -> Color(0xFFD0A44A)
-    ThemeStyle.CORAL -> Color(0xFFFF5F52)
-    ThemeStyle.CYBER -> Color(0xFF1EB8E8)
+    ThemeStyle.BOTANICAL -> Color(0xFF5AA8F6)
+    ThemeStyle.MINIMAL -> Color(0xFF20242A)
+    ThemeStyle.NEON -> Color(0xFF55BCEB)
+    ThemeStyle.FAMILY -> Color(0xFF547C52)
+    ThemeStyle.AURORA -> Color(0xFF6A64D8)
+    ThemeStyle.SAGE -> Color(0xFFF07B55)
+    ThemeStyle.MATERIAL -> Color(0xFF13A7D8)
+    ThemeStyle.LUXURY -> Color(0xFFD9E1E8)
+    ThemeStyle.CORAL -> Color(0xFF7B3FD1)
+    ThemeStyle.CYBER -> Color(0xFFD89A47)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -108,7 +108,7 @@ internal fun AppearanceSettingsContent(context: Context) {
         }
 
         Text(
-            "Яркость",
+            "Яркость интерфейса",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
