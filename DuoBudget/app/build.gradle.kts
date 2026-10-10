@@ -64,7 +64,7 @@ private fun GlassCard"""
 
         text = text.replace(
             "colors=CardDefaults.cardColors(containerColor=if(dark)Color(0x99332B27)else Color(0x70FFFCF7)),",
-            "colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).76f else .66f)),"
+            "colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).76f else .66f),contentColor=MaterialTheme.colorScheme.onSurface),"
         )
         text = text.replace(
             "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.72f)),",
@@ -78,11 +78,16 @@ private fun GlassCard"""
             "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.8f)),",
             "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).82f else .72f)),"
         )
+        text = text.replace(
+            "@Composable private fun Title(text:String){Text(text,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)}",
+            "@Composable private fun Title(text:String){Text(text,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onBackground)}"
+        )
 
         check(!text.contains("Surface(onClick=onSettings")) { "Home header settings button was not removed" }
         check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
         check(text.contains("DuoBudgetBackground(content)")) { "Themed background patch was not applied" }
-        check(text.contains("surfaceContainer.copy(alpha=if(dark).76f else .66f)")) { "Themed card patch was not applied" }
+        check(text.contains("contentColor=MaterialTheme.colorScheme.onSurface")) { "Glass card content color patch was not applied" }
+        check(text.contains("color=MaterialTheme.colorScheme.onBackground)")) { "Screen title contrast patch was not applied" }
         check(text.contains("surfaceContainer.copy(alpha=if(dark).88f else .82f)")) { "Themed bottom bar patch was not applied" }
         uiFile.writeText(text)
     }
