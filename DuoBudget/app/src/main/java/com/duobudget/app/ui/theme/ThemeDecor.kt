@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -119,7 +118,7 @@ fun DuoBudgetBackground(content: @Composable BoxScope.() -> Unit) {
             Image(
                 painter = painterResource(photo),
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
             val scrim = if (dark) {
@@ -137,7 +136,7 @@ fun DuoBudgetBackground(content: @Composable BoxScope.() -> Unit) {
             }
             Box(
                 Modifier
-                    .matchParentSize()
+                    .fillMaxSize()
                     .background(Brush.verticalGradient(scrim))
             )
         } else {
@@ -149,7 +148,7 @@ fun DuoBudgetBackground(content: @Composable BoxScope.() -> Unit) {
 
 @Composable
 private fun BoxScope.StaticDecor(style: ThemeStyle, bg: Backdrop, dark: Boolean) {
-    Canvas(Modifier.matchParentSize()) {
+    Canvas(Modifier.fillMaxSize()) {
         when (style) {
             ThemeStyle.BOTANICAL -> {
                 drawCircle(
