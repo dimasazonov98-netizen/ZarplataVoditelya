@@ -161,15 +161,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                 Scaffold(
                     modifier=Modifier.testTag("app"),
                     containerColor=Color.Transparent,
-                    bottomBar={if(route in mainRoutes)GlassBottomBar(route,tabs){destination->nav.navigate(destination){popUpTo("home"){saveState=true};launchSingleTop=true;restoreState=true}}},
-                    floatingActionButton={if(route in mainRoutes)FloatingActionButton(
-                        onClick={addSheet=true},
-                        modifier=Modifier.size(62.dp).semantics{contentDescription="Добавить операцию"},
-                        shape=CircleShape,
-                        containerColor=MaterialTheme.colorScheme.primary,
-                        contentColor=MaterialTheme.colorScheme.onPrimary
-                    ){Text("+",fontSize=30.sp,fontWeight=FontWeight.Light)}},
-                    floatingActionButtonPosition=FabPosition.Center
+                    bottomBar={if(route in mainRoutes)GlassBottomBar(route,tabs,onAdd={addSheet=true}){destination->nav.navigate(destination){popUpTo("home"){saveState=true};launchSingleTop=true;restoreState=true}}}
                 ){padding->
                     Box(Modifier.fillMaxSize().padding(padding)){
                         NavHost(nav,startDestination="home"){
@@ -210,7 +202,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
 }
 
 @Composable
-private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,onNavigate:(String)->Unit){
+private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,onAdd:()->Unit,onNavigate:(String)->Unit){
     val dark=isSystemInDarkTheme()
     Surface(
         modifier=Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),
@@ -220,9 +212,18 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
         shadowElevation=10.dp,
         tonalElevation=0.dp
     ){
-        Row(Modifier.fillMaxWidth().height(66.dp).padding(5.dp),verticalAlignment=Alignment.CenterVertically){
+        Row(Modifier.fillMaxWidth().height(72.dp).padding(5.dp),verticalAlignment=Alignment.CenterVertically){
             tabs.forEachIndexed{index,t->
-                if(index==2)Spacer(Modifier.width(66.dp))
+                if(index==2)Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.Center){
+                    Surface(
+                        onClick=onAdd,
+                        modifier=Modifier.size(54.dp).semantics{contentDescription="Добавить операцию"},
+                        shape=CircleShape,
+                        color=MaterialTheme.colorScheme.primary,
+                        contentColor=MaterialTheme.colorScheme.onPrimary,
+                        shadowElevation=6.dp
+                    ){Box(contentAlignment=Alignment.Center){Text("+",fontSize=30.sp,lineHeight=30.sp,fontWeight=FontWeight.Light)}}
+                }
                 val selected=route==t.first
                 val foreground=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(
@@ -419,7 +420,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
         item{Metric("Свободные накопления",d.savings,Modifier.fillMaxWidth())}
         item{Text("Это деньги, отложенные из остатков счетов. Пополнение не создаёт доход, снятие не создаёт расход.",style=MaterialTheme.typography.bodySmall)}
         item{MoneyField(value,{value=it},"Сумма, ₽")}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button(onClick={vm.addToSavings(amount!!);value=""},enabled=!busy&&amount!=null&&amount>0,modifier=Modifier.weight(1f)){Text("Отложить")};OutlinedButton(onClick={withdraw=true},enabled=!busy&&amount!=null&&amount in 1..d.savings,modifier=Modifier.weight(1f)){Text("Взять")}}}
+        item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Button(onClick={vm.addToSavings(amount!!);value=""},enabled=!busy&&amount!=null&&amount>0,modifier=Modifier.weight(1f).height(52.dp)){Text("Отложить")};OutlinedButton(onClick={withdraw=true},enabled=!busy&&amount!=null&&amount in 1..d.savings,modifier=Modifier.weight(1f).height(52.dp)){Text("Взять")}}}
         item{Metric("Всего с целями",BudgetEngine.savingsTotal(d),Modifier.fillMaxWidth())}
         item{HorizontalDivider()}
         item{Row(verticalAlignment=Alignment.CenterVertically){Text("Совместные цели",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));TextButton(onClick={goalDialog=true}){Text("+ Цель")}}}
@@ -445,9 +446,9 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
         if(g.currentAmount==g.targetAmount)Text("Цель достигнута",color=MaterialTheme.colorScheme.primary)
         MoneyField(value,{value=it},"Из свободных накоплений, ₽")
         if(transfer>0)Text("Внесём "+rub(transfer),style=MaterialTheme.typography.bodySmall)
-        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
-            Button(onClick={vm.fundGoal(g.id,amount!!);value=""},enabled=!busy&&transfer>0){Text("Внести")}
-            TextButton(onClick={returnMoney=true},enabled=!busy&&amount!=null&&amount in 1..g.currentAmount){Text("Вернуть в накопления")}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
+            Button(onClick={vm.fundGoal(g.id,amount!!);value=""},enabled=!busy&&transfer>0,modifier=Modifier.weight(1f).height(52.dp)){Text("Внести")}
+            OutlinedButton(onClick={returnMoney=true},enabled=!busy&&amount!=null&&amount in 1..g.currentAmount,modifier=Modifier.weight(1f).height(52.dp)){Text("Вернуть")}
         }
     }}
     if(returnMoney)AppDialog(onDismissRequest={returnMoney=false},title={Text("Вернуть из цели?")},text={Text(rub(amount?:0)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.withdrawGoal(g.id,amount?:0);value="";returnMoney=false}){Text("Вернуть")}},dismissButton={TextButton(onClick={returnMoney=false}){Text("Отмена")}})
