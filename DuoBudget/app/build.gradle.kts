@@ -35,7 +35,7 @@ android {
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
-val patchDuoBudgetUi by tasks.registering {
+val patchDuoBudgetUi = tasks.register("patchDuoBudgetUi") {
     outputs.upToDateWhen { false }
     doLast {
         val uiFile = file("src/main/java/com/duobudget/app/ui/App.kt")
@@ -46,11 +46,11 @@ val patchDuoBudgetUi by tasks.registering {
         if (text.contains(oldHeader)) text = text.replace(oldHeader, newHeader)
 
         val oldAppearance = "GlassCard(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(\"Оформление\",fontWeight=FontWeight.SemiBold);Text(\"Светлая или тёмная тема включается автоматически вместе с темой телефона.\",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}"
-        val newAppearance = """GlassCard(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(\"Оформление\",fontWeight=FontWeight.SemiBold);val themeMode=com.duobudget.app.ui.theme.ThemePreferences.currentMode;FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(themeMode==com.duobudget.app.ui.theme.ThemeMode.SYSTEM,{com.duobudget.app.ui.theme.ThemePreferences.set(context,com.duobudget.app.ui.theme.ThemeMode.SYSTEM)},label={Text(\"Система\")});FilterChip(themeMode==com.duobudget.app.ui.theme.ThemeMode.LIGHT,{com.duobudget.app.ui.theme.ThemePreferences.set(context,com.duobudget.app.ui.theme.ThemeMode.LIGHT)},label={Text(\"Светлая\")});FilterChip(themeMode==com.duobudget.app.ui.theme.ThemeMode.DARK,{com.duobudget.app.ui.theme.ThemePreferences.set(context,com.duobudget.app.ui.theme.ThemeMode.DARK)},label={Text(\"Тёмная\")})};Text(\"Выбор сохраняется на телефоне и применяется ко всему интерфейсу.\",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}"""
+        val newAppearance = "GlassCard(Modifier.fillMaxWidth()){AppearanceSettingsContent(context)}"
         if (text.contains(oldAppearance)) text = text.replace(oldAppearance, newAppearance)
 
         check(text.contains("contentDescription=\"Настройки\"")) { "Header settings icon patch was not applied" }
-        check(text.contains("ThemePreferences.currentMode")) { "Theme selector patch was not applied" }
+        check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
         uiFile.writeText(text)
     }
 }
