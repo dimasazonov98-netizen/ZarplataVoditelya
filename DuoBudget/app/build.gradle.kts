@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10106
-        versionName = "1.1.6"
+        versionCode = 10107
+        versionName = "1.1.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
@@ -64,26 +64,26 @@ private fun GlassCard"""
 
         text = text.replace(
             "colors=CardDefaults.cardColors(containerColor=if(dark)Color(0x99332B27)else Color(0x70FFFCF7)),",
-            "colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).84f else .76f)),"
+            "colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).76f else .66f)),"
         )
         text = text.replace(
             "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.72f)),",
-            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).72f else .62f)),"
+            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).78f else .68f)),"
         )
         text = text.replace(
             "color=if(dark)Color(0xCC302824)else Color(0xB8FFFDF8),",
-            "color=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).94f else .90f),"
+            "color=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=if(dark).88f else .82f),"
         )
         text = text.replace(
             "border=BorderStroke(1.dp,if(dark)Color.White.copy(.16f)else Color.White.copy(.8f)),",
-            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).78f else .68f)),"
+            "border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=if(dark).82f else .72f)),"
         )
 
         check(!text.contains("Surface(onClick=onSettings")) { "Home header settings button was not removed" }
         check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
         check(text.contains("DuoBudgetBackground(content)")) { "Themed background patch was not applied" }
-        check(text.contains("surfaceContainer.copy(alpha=if(dark).84f else .76f)")) { "Themed card patch was not applied" }
-        check(text.contains("surfaceContainer.copy(alpha=if(dark).94f else .90f)")) { "Themed bottom bar patch was not applied" }
+        check(text.contains("surfaceContainer.copy(alpha=if(dark).76f else .66f)")) { "Themed card patch was not applied" }
+        check(text.contains("surfaceContainer.copy(alpha=if(dark).88f else .82f)")) { "Themed bottom bar patch was not applied" }
         uiFile.writeText(text)
     }
 }
