@@ -2,7 +2,6 @@ package com.duobudget.app
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.util.Base64
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -16,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ThemeLayoutInstrumentedTest {
@@ -72,15 +72,13 @@ class ThemeLayoutInstrumentedTest {
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             view.draw(Canvas(bitmap))
             val bytes = ByteArrayOutputStream().use { output ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
                 output.toByteArray()
             }
             bitmap.recycle()
-            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            val parts = encoded.chunked(2048)
-            parts.forEachIndexed { index, part ->
-                android.util.Log.i("DuoBudgetThemeQA", "THEMEIMAGE|$name|$index|${parts.size}|$part")
-            }
+            val target = File(rule.activity.filesDir, "theme-preview-$name.jpg")
+            target.writeBytes(bytes)
+            check(target.length() > 1024L) { "Theme preview is unexpectedly small: $name" }
         }
     }
 
