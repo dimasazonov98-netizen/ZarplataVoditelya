@@ -25,15 +25,11 @@ object ThemePreferences {
     private const val PREFS = "duobudget_ui"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_STYLE = "theme_style"
-    private const val KEY_ANIMATED_BACKGROUND = "animated_background"
 
     var currentMode by mutableStateOf(ThemeMode.SYSTEM)
         private set
 
     var currentStyle by mutableStateOf(ThemeStyle.BOTANICAL)
-        private set
-
-    var animatedBackground by mutableStateOf(true)
         private set
 
     fun init(context: Context) {
@@ -45,7 +41,6 @@ object ThemePreferences {
             .getOrDefault(ThemeMode.SYSTEM)
         currentStyle = runCatching { ThemeStyle.valueOf(storedStyle.orEmpty()) }
             .getOrDefault(ThemeStyle.BOTANICAL)
-        animatedBackground = prefs.getBoolean(KEY_ANIMATED_BACKGROUND, true)
         applyMode(currentMode)
     }
 
@@ -65,15 +60,6 @@ object ThemePreferences {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_STYLE, style.name)
-            .apply()
-    }
-
-    fun setAnimatedBackground(context: Context, enabled: Boolean) {
-        if (animatedBackground == enabled) return
-        animatedBackground = enabled
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_ANIMATED_BACKGROUND, enabled)
             .apply()
     }
 
