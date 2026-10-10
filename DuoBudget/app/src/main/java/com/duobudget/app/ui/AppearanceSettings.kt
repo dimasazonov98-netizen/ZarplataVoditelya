@@ -51,6 +51,11 @@ private fun themePreview(style: ThemeStyle) = when (style) {
     ThemeStyle.CYBER -> Color(0xFFD89A47)
 }
 
+private fun recommendedMode(style: ThemeStyle) = when (style) {
+    ThemeStyle.BOTANICAL, ThemeStyle.NEON, ThemeStyle.LUXURY, ThemeStyle.CYBER -> ThemeMode.LIGHT
+    ThemeStyle.MINIMAL, ThemeStyle.FAMILY, ThemeStyle.AURORA, ThemeStyle.SAGE, ThemeStyle.MATERIAL, ThemeStyle.CORAL -> ThemeMode.DARK
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AppearanceSettingsContent(context: Context) {
@@ -72,7 +77,10 @@ internal fun AppearanceSettingsContent(context: Context) {
             ThemeStyle.entries.forEach { option ->
                 FilterChip(
                     selected = style == option,
-                    onClick = { ThemePreferences.setStyle(context, option) },
+                    onClick = {
+                        ThemePreferences.setStyle(context, option)
+                        ThemePreferences.set(context, recommendedMode(option))
+                    },
                     leadingIcon = {
                         Box(
                             Modifier
@@ -134,7 +142,7 @@ internal fun AppearanceSettingsContent(context: Context) {
         }
 
         Text(
-            "Тема, яркость и анимация сохраняются на телефоне и применяются ко всему интерфейсу.",
+            "При выборе темы включается яркость как на её превью. После выбора её можно изменить вручную.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
