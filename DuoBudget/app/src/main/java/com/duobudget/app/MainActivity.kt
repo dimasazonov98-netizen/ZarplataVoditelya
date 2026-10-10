@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.*
@@ -22,11 +23,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import com.duobudget.app.ui.DuoBudgetApp
 import com.duobudget.app.ui.theme.DuoBudgetTheme
+import com.duobudget.app.ui.theme.ThemePreferences
 
-class MainActivity:FragmentActivity() {
+class MainActivity:AppCompatActivity() {
     private val unlocked=mutableStateOf(false)
     private val hasUnlocked=mutableStateOf(false)
     private val expenseRequest=mutableStateOf(0)
@@ -41,6 +42,7 @@ class MainActivity:FragmentActivity() {
         if(it.resultCode==Activity.RESULT_OK)unlock()
     }
     override fun onCreate(savedInstanceState:Bundle?){
+        ThemePreferences.init(this)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         biometric=BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)==BiometricManager.BIOMETRIC_SUCCESS
@@ -106,4 +108,3 @@ class MainActivity:FragmentActivity() {
         prompt.authenticate(builder.setAllowedAuthenticators(allowed).build())
     }
 }
-
