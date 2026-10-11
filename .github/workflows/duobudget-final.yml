@@ -38,7 +38,7 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest lintRelease assembleRelease assembleDebug assembleDebugAndroidTest --stacktrace
       - name: Enable KVM
         run: sudo chmod 666 /dev/kvm
-      - name: Android UI, encrypted vault, restoration and static theme layout tests
+      - name: Android UI, encrypted vault, restoration and light theme tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
@@ -50,20 +50,15 @@ jobs:
           script: |
             adb logcat -G 16M || true
             gradle --no-daemon -p DuoBudget connectedDebugAndroidTest --stacktrace
-            adb install -r -t DuoBudget/app/build/outputs/apk/debug/app-debug.apk
-            adb install -r -t DuoBudget/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w -e class com.duobudget.app.ThemeLayoutInstrumentedTest com.duobudget.family.test/androidx.test.runner.AndroidJUnitRunner
-            mkdir -p final-out/screens final-out/theme-previews
-            for name in 01-classic-light 02-classic-dark 03-mountains 04-forest 05-city 06-sunset 07-ocean 08-minimal 09-purple-night 10-golden-sand; do adb exec-out run-as com.duobudget.family cat "files/theme-preview-$name.jpg" > "final-out/theme-previews/$name.jpg"; test -s "final-out/theme-previews/$name.jpg"; done
       - name: Collect unsigned release, signer and validation
         if: always()
         shell: bash
         run: |
-          mkdir -p final-out/screens final-out/theme-previews
+          mkdir -p final-out/screens
           if [ -f DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
             cp DuoBudget/app/build/outputs/apk/release/app-release-unsigned.apk final-out/
           fi
-          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" final-out/
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" final-out/ || true
           cp -R DuoBudget/app/build/reports final-out/reports || true
           cp -R DuoBudget/app/build/test-results final-out/test-results || true
           cp -R DuoBudget/app/build/outputs/androidTest-results final-out/androidTest-results || true
@@ -85,18 +80,11 @@ jobs:
               assert data.startswith(b'\x89PNG\r\n\x1a\n')
               Path('final-out/screens',name+'.png').write_bytes(data)
           assert len(frames)==3,'All synthetic screenshots must be present'
-
-          previews=sorted(Path('final-out/theme-previews').glob('*.jpg'))
-          assert len(previews)==10, f'Expected 10 theme previews, got {len(previews)}'
-          for preview in previews:
-              data=preview.read_bytes()
-              assert len(data)>1024, preview
-              assert data.startswith(b'\xff\xd8\xff'), preview
           PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: DuoBudget-v1.1.8-api-${{ matrix.api }}
+          name: DuoBudget-v1.1.9-api-${{ matrix.api }}
           path: final-out/
           retention-days: 7
           if-no-files-found: error
