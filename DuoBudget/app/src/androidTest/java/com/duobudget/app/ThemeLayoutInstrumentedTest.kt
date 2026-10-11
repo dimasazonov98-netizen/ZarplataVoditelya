@@ -1,124 +1,38 @@
 package com.duobudget.app
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.duobudget.app.ui.theme.ThemeMode
-import com.duobudget.app.ui.theme.ThemePreferences
-import com.duobudget.app.ui.theme.ThemeStyle
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.ByteArrayOutputStream
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ThemeLayoutInstrumentedTest {
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
 
-    private fun visibleBounds(label: String): Rect {
-        val matcher = hasText(label) or hasContentDescription(label)
-        val nodes = rule.onAllNodes(matcher).fetchSemanticsNodes()
-        assertTrue("Missing UI node: $label", nodes.isNotEmpty())
-        val node = nodes.firstOrNull { it.boundsInRoot.width > 0f && it.boundsInRoot.height > 0f }
-            ?: error("No measurable node for $label")
-        return node.boundsInRoot
-    }
-
-    private fun assertInsideRoot(label: String): Rect {
-        val root = rule.onNodeWithTag("app").fetchSemanticsNode().boundsInRoot
-        val b = visibleBounds(label)
-        assertTrue("$label left is outside root: $b / $root", b.left >= root.left - 1f)
-        assertTrue("$label top is outside root: $b / $root", b.top >= root.top - 1f)
-        assertTrue("$label right is outside root: $b / $root", b.right <= root.right + 1f)
-        assertTrue("$label bottom is outside root: $b / $root", b.bottom <= root.bottom + 1f)
-        return b
-    }
-
-    private fun assertSameRect(expected: Rect, actual: Rect, label: String) {
-        assertEquals("$label left moved", expected.left, actual.left, 1f)
-        assertEquals("$label top moved", expected.top, actual.top, 1f)
-        assertEquals("$label right moved", expected.right, actual.right, 1f)
-        assertEquals("$label bottom moved", expected.bottom, actual.bottom, 1f)
-    }
-
-    private fun recommendedMode(style: ThemeStyle) = when (style) {
-        ThemeStyle.BOTANICAL, ThemeStyle.NEON, ThemeStyle.LUXURY, ThemeStyle.CYBER -> ThemeMode.LIGHT
-        ThemeStyle.MINIMAL, ThemeStyle.FAMILY, ThemeStyle.AURORA, ThemeStyle.SAGE, ThemeStyle.MATERIAL, ThemeStyle.CORAL -> ThemeMode.DARK
-    }
-
-    private fun previewName(style: ThemeStyle) = when (style) {
-        ThemeStyle.BOTANICAL -> "01-classic-light"
-        ThemeStyle.MINIMAL -> "02-classic-dark"
-        ThemeStyle.NEON -> "03-mountains"
-        ThemeStyle.FAMILY -> "04-forest"
-        ThemeStyle.AURORA -> "05-city"
-        ThemeStyle.SAGE -> "06-sunset"
-        ThemeStyle.MATERIAL -> "07-ocean"
-        ThemeStyle.LUXURY -> "08-minimal"
-        ThemeStyle.CORAL -> "09-purple-night"
-        ThemeStyle.CYBER -> "10-golden-sand"
-    }
-
-    private fun shot(name: String) {
-        rule.runOnUiThread {
-            val view = rule.activity.window.decorView
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-            val bytes = ByteArrayOutputStream().use { output ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
-                output.toByteArray()
-            }
-            bitmap.recycle()
-            val target = File(rule.activity.filesDir, "theme-preview-$name.jpg")
-            target.writeBytes(bytes)
-            check(target.length() > 1024L) { "Theme preview is unexpectedly small: $name" }
-        }
-    }
-
     @Test
-    fun allStaticThemesKeepPrimaryLayoutStable() {
+    fun primaryLayoutFitsSingleLightTheme() {
         rule.waitForIdle()
-        val labels = listOf("Наш бюджет", "Главная", "Операции", "Цели", "Ещё")
-        val baseline = labels.associateWith { assertInsideRoot(it) }
-
-        ThemeStyle.entries.forEach { style ->
-            rule.runOnUiThread {
-                ThemePreferences.setStyle(rule.activity, style)
-                ThemePreferences.set(rule.activity, recommendedMode(style))
-            }
-            rule.waitForIdle()
-
-            val current = labels.associateWith { assertInsideRoot(it) }
-            labels.forEach { label ->
-                assertSameRect(baseline.getValue(label), current.getValue(label), "$style / $label")
-            }
-
-            val nav = listOf("Главная", "Операции", "Цели", "Ещё").map { current.getValue(it) }
-            nav.zipWithNext().forEachIndexed { index, (left, right) ->
-                assertTrue(
-                    "Bottom navigation labels overlap for $style at $index: $left / $right",
-                    left.right <= right.left + 1f
-                )
-            }
-            shot(previewName(style))
+        listOf("Наш бюджет", "Главная", "Операции", "Цели", "Ещё").forEach { label ->
+            rule.onAllNodes(hasText(label))[0].assertIsDisplayed()
         }
     }
 
     @Test
-    fun appearanceControlsFitAndRemainReachable() {
+    fun settingsExposeOnlyLightTheme() {
         rule.waitForIdle()
         rule.onAllNodes(hasText("Ещё"))[0].performClick()
         rule.waitForIdle()
 
-        val themeLabels = listOf(
-            "Классическая светлая",
+        val light = rule.onAllNodes(hasText("Светлая тема"))[0]
+        runCatching { light.performScrollTo() }
+        rule.waitForIdle()
+        light.assertIsDisplayed()
+
+        val removedLabels = listOf(
             "Классическая тёмная",
             "Горные пейзажи",
             "Лесная природа",
@@ -127,45 +41,20 @@ class ThemeLayoutInstrumentedTest {
             "Океан",
             "Минимализм",
             "Фиолетовая ночь",
-            "Золотой песок"
+            "Золотой песок",
+            "Система",
+            "Тёмная",
+            "Анимированный фон"
         )
-
-        themeLabels.forEach { label ->
-            val node = rule.onAllNodes(hasText(label))[0]
-            runCatching { node.performScrollTo() }
-            rule.waitForIdle()
-            node.assertIsDisplayed()
+        removedLabels.forEach { label ->
+            assertTrue(
+                "Removed theme control is still present: $label",
+                rule.onAllNodes(hasText(label)).fetchSemanticsNodes().isEmpty()
+            )
         }
-
         assertTrue(
-            "Animated background control must be removed",
-            rule.onAllNodes(hasText("Анимированный фон")).fetchSemanticsNodes().isEmpty()
+            "Legacy theme selector must be removed",
+            rule.onAllNodesWithTag("theme-selector").fetchSemanticsNodes().isEmpty()
         )
-
-        ThemeStyle.entries.chunked(2).forEach { pair ->
-            val first = rule.onNodeWithTag("theme-${pair[0].name.lowercase()}")
-            runCatching { first.performScrollTo() }
-            rule.waitForIdle()
-            val firstBounds = first.fetchSemanticsNode().boundsInRoot
-            assertTrue("First theme chip has no size: ${pair[0]}", firstBounds.width > 0f && firstBounds.height > 0f)
-
-            if (pair.size > 1) {
-                val second = rule.onNodeWithTag("theme-${pair[1].name.lowercase()}")
-                val secondBounds = second.fetchSemanticsNode().boundsInRoot
-                assertTrue("Second theme chip has no size: ${pair[1]}", secondBounds.width > 0f && secondBounds.height > 0f)
-                assertTrue(
-                    "Theme chips overlap: ${pair[0]} / ${pair[1]}: $firstBounds / $secondBounds",
-                    firstBounds.right <= secondBounds.left + 1f
-                )
-                assertEquals("Theme row top differs", firstBounds.top, secondBounds.top, 2f)
-            }
-        }
-
-        listOf("Система", "Светлая", "Тёмная").forEach { label ->
-            val node = rule.onAllNodes(hasText(label))[0]
-            runCatching { node.performScrollTo() }
-            rule.waitForIdle()
-            node.assertIsDisplayed()
-        }
     }
 }
