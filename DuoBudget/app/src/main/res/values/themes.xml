@@ -3,6 +3,5 @@
     <style name="Theme.DuoBudget" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
