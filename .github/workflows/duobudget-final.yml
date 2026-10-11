@@ -33,6 +33,14 @@ jobs:
         with:
           gradle-version: '9.6.0'
           cache-read-only: false
+      - name: Prepare pinned offline Russian and English OCR models
+        shell: bash
+        run: |
+          mkdir -p DuoBudget/app/src/main/assets/tessdata
+          base=https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd
+          curl --fail --location --retry 3 "$base/rus.traineddata" -o DuoBudget/app/src/main/assets/tessdata/rus.traineddata
+          curl --fail --location --retry 3 "$base/eng.traineddata" -o DuoBudget/app/src/main/assets/tessdata/eng.traineddata
+          sha256sum -c DuoBudget/ocr-models.sha256
       - name: Money, backup tests, release lint and APK builds
         working-directory: DuoBudget
         run: gradle --no-daemon testDebugUnitTest lintRelease assembleRelease assembleDebug assembleDebugAndroidTest --stacktrace
@@ -84,7 +92,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: DuoBudget-v1.1.9-api-${{ matrix.api }}
+          name: DuoBudget-v1.2.0-api-${{ matrix.api }}
           path: final-out/
           retention-days: 7
           if-no-files-found: error

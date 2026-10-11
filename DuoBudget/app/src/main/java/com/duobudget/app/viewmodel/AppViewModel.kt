@@ -62,11 +62,16 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
     private fun command(kind:String,id:String="",value:Long=0,text:String="",extra:String="",tx:MoneyTransaction?=null,goal:Goal?=null,account:MoneyAccount?=null,onSuccess:(()->Unit)?=null) {
         action({val s=store?:error("Хранилище недоступно");s.enqueue(BudgetCommand(kind=kind,actorId=s.actorId,entityId=id,value=value,text=text,extra=extra,tx=tx,goal=goal,account=account))},onSuccess)
     }
-    fun saveTransaction(old:MoneyTransaction?,type:TransactionType,amount:Long,category:String,note:String,accountId:String,targetAccountId:String,payer:Payer,date:LocalDateTime,onSuccess:()->Unit) {
-        val t=MoneyTransaction(id=old?.id?:UUID.randomUUID().toString(),type=type,amount=amount,category=if(type==TransactionType.INCOME)"Доход" else if(type==TransactionType.TRANSFER)"Перевод" else if(type==TransactionType.CASHBACK)"Кэшбэк" else category,
+    fun saveTransaction(old:MoneyTransaction?,type:TransactionType,amount:Long,category:String,note:String,accountId:String,targetAccountId:String,payer:Payer,date:LocalDateTime,receiptId:String="",onSuccess:()->Unit) {
+        if(receiptId.isNotBlank()&&!receiptId.matches(Regex("receipt_[a-f0-9]{64}"))){_message.value="Некорректные реквизиты чека";return}
+        val t=MoneyTransaction(id=old?.id?:receiptId.ifBlank{UUID.randomUUID().toString()},type=type,amount=amount,category=if(type==TransactionType.INCOME)"Доход" else if(type==TransactionType.TRANSFER)"Перевод" else if(type==TransactionType.CASHBACK)"Кэшбэк" else category,
             note=note.trim(),accountId=accountId,targetAccountId=if(type==TransactionType.TRANSFER)targetAccountId else "",payer=payer,payerName=payerName(payer),
             createdByUid=actorId,createdAt=date,updatedAt=LocalDateTime.now(),version=old?.version?:1)
-        command("TX_PUT",tx=t,onSuccess=onSuccess)
+        action({
+            val s=store?:error("Хранилище недоступно")
+            require(old!=null||receiptId.isBlank()||s.data().transactions.none{it.id==receiptId}){"Этот чек уже учтён. Если операция в корзине, восстановите её."}
+            s.enqueue(BudgetCommand(kind="TX_PUT",actorId=s.actorId,tx=t))
+        },onSuccess)
     }
     fun deleteTransaction(id:String)=command("TX_DELETE",id)
     fun restoreTransaction(id:String)=command("TX_RESTORE",id)

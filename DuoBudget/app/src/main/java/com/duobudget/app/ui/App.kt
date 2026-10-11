@@ -345,6 +345,11 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     var payer by rememberSaveable(old?.id){mutableStateOf(old?.payer?:vm.myPayer)}
     var dateText by rememberSaveable(old?.id){mutableStateOf((old?.createdAt?.toLocalDate()?:LocalDate.now()).format(dates))}
     var custom by rememberSaveable{mutableStateOf(false)}
+    var receiptId by rememberSaveable{mutableStateOf("")}
+    var receiptTime by rememberSaveable{mutableStateOf("")}
+    var receiptStatus by rememberSaveable{mutableStateOf("")}
+    var scanning by remember{mutableStateOf(false)}
+    val duplicate=receiptId.isNotBlank()&&d.transactions.any{it.id==receiptId}
     val date=runCatching{LocalDate.parse(dateText,dates)}.getOrNull()
     val validDate=date!=null&&date<=LocalDate.now()&&date.year>=1900
     val parsed=Money.parse(amount)
@@ -352,6 +357,28 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     Column(Modifier.fillMaxSize().imePadding()){
     LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Title(if(old==null)"Новая операция"else"Изменить операцию")}
+        if(old==null)item{
+            ReceiptInput(enabled=!busy,onScanning={scanning=it},onDraft={draft->
+                type=draft.type
+                amount=draft.amount?.let(Money::edit).orEmpty()
+                dateText=draft.date?.toLocalDate()?.format(dates).orEmpty()
+                receiptTime=draft.date?.toLocalTime()?.toString().orEmpty()
+                category=draft.category;custom=false
+                note=if(draft.merchant.isNotBlank())"Чек · "+draft.merchant else "Кассовый чек"
+                receiptId=draft.receiptId
+                val possibleDuplicate=draft.receiptId.isBlank()&&draft.amount!=null&&draft.date!=null&&d.transactions.any{
+                    !it.deleted&&it.type==draft.type&&it.amount==draft.amount&&it.createdAt.toLocalDate()==draft.date.toLocalDate()
+                }
+                receiptStatus=when{
+                    draft.fromQr->"Сумма и дата прочитаны из QR-кода. Выберите категорию, счёт и проверьте данные."
+                    draft.amount==null||draft.date==null->"Не все данные удалось прочитать. Заполните пустые поля и проверьте чек."
+                    possibleDuplicate->"Есть операция с такой же суммой и датой. Проверьте, не добавляли ли вы этот чек раньше."
+                    else->"Данные заполнены по фото. Проверьте сумму, дату, категорию и счёт."
+                }
+            })
+            if(receiptStatus.isNotBlank())Text(receiptStatus,Modifier.padding(top=8.dp),style=MaterialTheme.typography.bodySmall)
+            if(duplicate)Text("Этот чек уже учтён. Если операция в корзине, восстановите её.",color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(top=8.dp))
+        }
         item{FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){TransactionType.entries.forEach{t->FilterChip(type==t,{type=t},label={Text(typeName(t))})}}}
         item{MoneyField(amount,{amount=it},"Сумма, ₽")}
         item{OutlinedTextField(dateText,{dateText=it.take(10)},label={Text("Дата · ДД.ММ.ГГГГ")},singleLine=true,isError=!validDate,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Ascii),supportingText=if(!validDate)({Text("Введите существующую дату, не позднее сегодня")})else null,modifier=Modifier.fillMaxWidth())}
@@ -373,8 +400,8 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     }
     HorizontalDivider()
     Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-        Button(onClick={vm.saveTransaction(old,type,parsed!!,category,note,account,target,payer,date!!.atTime(old?.createdAt?.toLocalTime()?:LocalTime.now()),onDone)},
-            enabled=!busy&&parsed!=null&&parsed>0&&validDate&&category.isNotBlank()&&(type!=TransactionType.TRANSFER||(target.isNotBlank()&&target!=account))&&(old==null||vm.canEdit(old)),modifier=Modifier.fillMaxWidth().height(52.dp)){Text("Сохранить операцию")}
+        Button(onClick={vm.saveTransaction(old,type,parsed!!,category,note,account,target,payer,date!!.atTime(old?.createdAt?.toLocalTime()?:receiptTime.takeIf{it.isNotBlank()}?.let(LocalTime::parse)?:LocalTime.now()),receiptId,onDone)},
+            enabled=!busy&&!scanning&&!duplicate&&parsed!=null&&parsed>0&&validDate&&category.isNotBlank()&&(type!=TransactionType.TRANSFER||(target.isNotBlank()&&target!=account))&&(old==null||vm.canEdit(old)),modifier=Modifier.fillMaxWidth().height(52.dp)){Text("Сохранить операцию")}
         OutlinedButton(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("Отмена")}
     }
     }

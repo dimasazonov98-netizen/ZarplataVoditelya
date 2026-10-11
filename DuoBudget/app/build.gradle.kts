@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10109
-        versionName = "1.1.9"
+        versionCode = 10200
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
@@ -98,6 +98,9 @@ tasks.configureEach {
 }
 
 dependencies {
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     val composeBom = platform("androidx.compose:compose-bom:2025.05.01")
     implementation(composeBom); androidTestImplementation(composeBom)
     implementation("androidx.core:core-ktx:1.16.0")
