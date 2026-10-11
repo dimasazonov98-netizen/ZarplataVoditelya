@@ -9,8 +9,8 @@ android {
         applicationId = "com.duobudget.family"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10108
-        versionName = "1.1.8"
+        versionCode = 10109
+        versionName = "1.1.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CLOUD_URL", "\"https://duobudget-family-sync.wirylemur8.chatgpt.site\"")
     }
@@ -84,11 +84,11 @@ private fun GlassCard"""
         )
 
         check(!text.contains("Surface(onClick=onSettings")) { "Home header settings button was not removed" }
-        check(text.contains("AppearanceSettingsContent(context)")) { "Theme selector patch was not applied" }
-        check(text.contains("DuoBudgetBackground(content)")) { "Themed background patch was not applied" }
+        check(text.contains("AppearanceSettingsContent(context)")) { "Appearance settings patch was not applied" }
+        check(text.contains("DuoBudgetBackground(content)")) { "Light background patch was not applied" }
         check(text.contains("contentColor=MaterialTheme.colorScheme.onSurface")) { "Glass card content color patch was not applied" }
         check(text.contains("color=MaterialTheme.colorScheme.onBackground)")) { "Screen title contrast patch was not applied" }
-        check(text.contains("surfaceContainer.copy(alpha=if(dark).88f else .82f)")) { "Themed bottom bar patch was not applied" }
+        check(text.contains("surfaceContainer.copy(alpha=if(dark).88f else .82f)")) { "Bottom bar patch was not applied" }
         uiFile.writeText(text)
     }
 }
