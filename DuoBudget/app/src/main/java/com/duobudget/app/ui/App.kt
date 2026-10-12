@@ -116,7 +116,7 @@ private fun Enter(index:Int,content:@Composable ()->Unit){
     AnimatedVisibility(visible=visible,enter=fadeIn(tween(420))+slideInVertically(tween(480)){it/5}){content()}
 }
 
-@Composable private fun AppDialog(
+@Composable internal fun AppDialog(
     onDismissRequest:()->Unit,
     title:@Composable ()->Unit,
     text:@Composable ()->Unit,
@@ -191,11 +191,14 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                         }
                     Box(Modifier.weight(1f).fillMaxWidth()){
                         NavHost(nav,startDestination="home"){
-                            composable("home"){HomeScreen(vm,{nav.navigate("accounts")},{nav.navigate("settings")},{nav.navigate("budget")})}
+                            composable("home"){HomeScreen(vm,{nav.navigate("accounts")},{nav.navigate("settings")},{nav.navigate("budget")},{nav.navigate("fixed")})}
                             composable("history"){HistoryScreen(vm){nav.navigate("edit/"+it)}}
-                            composable("budget"){BudgetScreen(vm)}
+                            composable("budget"){BudgetScreen(vm){nav.navigate("fixed")}}
                             composable("savings"){SavingsScreen(vm)}
-                            composable("settings"){SettingsScreen(vm){nav.navigate("accounts")}}
+                            composable("settings"){SettingsScreen(vm,{nav.navigate("accounts")},{nav.navigate("fixed")})}
+                            composable("fixed"){RecurringExpensesScreen(vm,{nav.navigate("fixed/new")},{nav.navigate("fixed/edit/"+it)})}
+                            composable("fixed/new"){RecurringExpenseForm(vm,null,::goBack)}
+                            composable("fixed/edit/{id}"){e->RecurringExpenseForm(vm,e.arguments?.getString("id"),::goBack)}
                             composable("accounts"){AccountsScreen(vm)}
                             composable("entry"){TransactionForm(vm,null,TransactionType.EXPENSE,::goBack)}
                             composable("entry/{type}"){e->TransactionForm(vm,null,runCatching{TransactionType.valueOf(e.arguments?.getString("type").orEmpty())}.getOrDefault(TransactionType.EXPENSE),::goBack)}
@@ -302,7 +305,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
 }
 @Composable private fun Empty(text:String){GlassCard(Modifier.fillMaxWidth()){Text(text,Modifier.padding(18.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)}}
 
-@Composable private fun HomeScreen(vm:AppViewModel,onAccounts:()->Unit,onSettings:()->Unit,onBudget:()->Unit){
+@Composable private fun HomeScreen(vm:AppViewModel,onAccounts:()->Unit,onSettings:()->Unit,onBudget:()->Unit,onRecurring:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle();val sync by vm.syncState.collectAsStateWithLifecycle()
     val expenses=BudgetEngine.netExpenses(d,month);val income=BudgetEngine.incomes(d,month);val available=BudgetEngine.available(d)
     val today=LocalDate.now();val days=(today.lengthOfMonth()-today.dayOfMonth+1).coerceAtLeast(1)
@@ -331,9 +334,10 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
                 Text(if(expenses>d.budget)"Превышение: "+rub(expenses-d.budget) else "Осталось: "+rub(d.budget-expenses),color=if(expenses>d.budget)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                 if(month==YearMonth.now())Text("Можно потратить сегодня: "+rub(daily),fontWeight=FontWeight.SemiBold)
             }else Text("Нажми, чтобы задать месячный лимит")
-            if(month==YearMonth.now()&&expenses>0){val projection=(BigDecimal.valueOf(expenses)*BigDecimal.valueOf(today.lengthOfMonth().toLong())/BigDecimal.valueOf(today.dayOfMonth.toLong())).toLong();Text("Прогноз расходов: "+rub(projection),style=MaterialTheme.typography.bodySmall)}
+            if(month==YearMonth.now()&&expenses>0){val fixed=d.transactions.filter{!it.deleted&&it.id.startsWith("fixed_")&&YearMonth.from(it.createdAt)==month}.sumOf{it.amount};val projection=fixed+(BigDecimal.valueOf((expenses-fixed).coerceAtLeast(0))*BigDecimal.valueOf(today.lengthOfMonth().toLong())/BigDecimal.valueOf(today.dayOfMonth.toLong())).toLong();Text("Прогноз расходов: "+rub(projection),style=MaterialTheme.typography.bodySmall)}
         }}}}
         item{Enter(4){Metric("Всего накоплено, включая цели",BudgetEngine.savingsTotal(d),Modifier.fillMaxWidth())}}
+        item{OutlinedButton(onClick=onRecurring,modifier=Modifier.fillMaxWidth()){Text("Обязательные расходы")}}
         item{Text("Последние операции",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onBackground)}
         val recent=d.transactions.filterNot{it.deleted}.sortedByDescending{it.createdAt}.take(5)
         if(recent.isEmpty())item{Empty("Нажми круглую кнопку «+», чтобы добавить первую операцию.")}
@@ -443,7 +447,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     }
     }
 }
-@Composable private fun BudgetScreen(vm:AppViewModel){
+@Composable private fun BudgetScreen(vm:AppViewModel,onRecurring:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
     var value by rememberSaveable(d.budget){mutableStateOf(if(d.budget==0L)""else Money.edit(d.budget))}
     var category by rememberSaveable{mutableStateOf(vm.categories.first())}
@@ -453,6 +457,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     val categories=(vm.categories+d.categoryLimits.keys).distinct()
     LazyColumn(Modifier.fillMaxSize().testTag("screen-list").imePadding(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item{Title("Бюджет")}
+        item{OutlinedButton(onClick=onRecurring,modifier=Modifier.fillMaxWidth()){Text("Обязательные расходы")}}
         item{MonthPicker(vm,month)}
         item{MoneyField(value,{value=it},"Общий лимит на каждый месяц, ₽",zero=true)}
         item{Button(onClick={vm.setBudget(parsed!!)},enabled=!busy&&parsed!=null&&parsed>=0,modifier=Modifier.fillMaxWidth()){Text("Сохранить общий лимит")}}
@@ -571,7 +576,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
             dismissButton={TextButton(onClick={mode="";uri=null}){Text("Отмена")}})
     }
 }
-@Composable private fun SettingsScreen(vm:AppViewModel,onAccounts:()->Unit){
+@Composable private fun SettingsScreen(vm:AppViewModel,onAccounts:()->Unit,onRecurring:()->Unit){
     val d by vm.data.collectAsStateWithLifecycle();val session by vm.session.collectAsStateWithLifecycle()
     val sync by vm.syncState.collectAsStateWithLifecycle();val syncMessage by vm.syncMessage.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
     val changes by vm.changes.collectAsStateWithLifecycle();val members by vm.members.collectAsStateWithLifecycle();val pending by vm.pending.collectAsStateWithLifecycle();val month by vm.month.collectAsStateWithLifecycle()
@@ -583,6 +588,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     val csv=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->if(uri!=null)vm.exportCsv(uri,month)}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         Title("Ещё")
+        OutlinedButton(onClick=onRecurring,modifier=Modifier.fillMaxWidth().testTag("fixed-open")){Text("Обязательные расходы")}
         GlassCard(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text("Оформление",fontWeight=FontWeight.SemiBold);Text("Светлая или тёмная тема включается автоматически вместе с темой телефона.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         Text("Профили",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
         OutlinedTextField(myName,{myName=it.take(60)},label={Text("Моё имя")},singleLine=true,modifier=Modifier.fillMaxWidth())

@@ -35,11 +35,12 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
     private val _members=MutableStateFlow(1);val members=_members.asStateFlow()
     private val _pending=MutableStateFlow(0);val pending=_pending.asStateFlow()
     private val _month=MutableStateFlow(YearMonth.now());val month=_month.asStateFlow()
+    private val _recurring=MutableStateFlow<List<RecurringExpense>>(emptyList());val recurringExpenses=_recurring.asStateFlow()
     val categories=listOf("Продукты","Жильё","Транспорт","Авто","Кафе","Здоровье","Покупки","Развлечения","Кредит","Другое")
     val myPayer:Payer get()=_session.value?.role?:Payer.ME
     val actorId:String get()=store?.actorId.orEmpty()
     init {
-        runCatching { LocalStore(app,preferences.getString("name","duobudget.v1.vault")!!) }.onSuccess {store=it;refresh()}.onFailure {
+        runCatching { LocalStore(app,preferences.getString("name","duobudget.v1.vault")!!) }.onSuccess {store=it;refresh();viewModelScope.launch { materializeRecurring() }}.onFailure {
             _storageError.value="Не удалось открыть защищённое хранилище. Данные не удалены. Для восстановления выберите резервную копию."
         }
     }
@@ -50,6 +51,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
     private fun refresh() {
         val s=store?:return
         _data.value=s.data();_session.value=s.session();_dark.value=s.dark();_changes.value=s.changes().sortedByDescending{it.id};_members.value=s.members();_pending.value=s.pending().size
+        _recurring.value=s.recurringExpenses()
     }
     private fun action(block:()->Unit,onSuccess:(()->Unit)?=null) {
         if(_busy.value)return
@@ -90,6 +92,14 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
         val second=if(myPayer==Payer.ME)partnerName else myName
         command("PROFILE_NAMES",text=first.trim(),extra=second.trim())
     }
+    fun saveRecurring(r:RecurringExpense,onSuccess:()->Unit)=action({store!!.saveRecurring(r)},onSuccess)
+    fun removeRecurring(id:String)=action({store!!.removeRecurring(id)})
+    fun setRecurringEnabled(r:RecurringExpense,enabled:Boolean)=action({store!!.saveRecurring(r.copy(enabled=enabled))})
+    private suspend fun materializeRecurring(){
+        val s=store?:return
+        try { if(withContext(Dispatchers.IO){s.generateRecurring()}>0)refresh() }
+        catch(e:Exception){if(e is CancellationException)throw e;_message.value=e.message?:"Не удалось добавить обязательные расходы"}
+    }
     fun setDark(value:Boolean)=action({store!!.setDark(value)})
     fun setForeground(foreground:Boolean) {
         poll?.cancel();poll=null
@@ -98,6 +108,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
     fun retrySync(){viewModelScope.launch{syncNow()}}
     private suspend fun syncNow()=syncMutex.withLock {
         val s=store?:return@withLock
+        materializeRecurring()
         val session=s.session()?:return@withLock
         _syncState.value=SyncState.SYNCING
         try {
@@ -180,7 +191,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
             if(store==null) {
                 // Verify the password and the complete data BEFORE writing any new vault.
                 val plain=BackupCipher.decrypt(bytes,password)
-                try {val j=JSONObject(String(plain,Charsets.UTF_8));require(j.getInt("schema")==1);StateCodec.data(j.getJSONObject("data"))}finally{plain.fill(0)}
+                try {val j=JSONObject(String(plain,Charsets.UTF_8));require(j.getInt("schema")==1);val data=StateCodec.data(j.getJSONObject("data"));RecurringExpenseEngine.validate(StateCodec.recurringList(j),data)}finally{plain.fill(0)}
                 val name="duobudget.recovered."+UUID.randomUUID()+".vault"
                 val fresh=LocalStore(app,name,false);fresh.restore(bytes,password)
                 require(preferences.edit().putString("name",name).commit()){"Не удалось сохранить настройку восстановления"}

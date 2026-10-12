@@ -10,6 +10,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.KeyStore
 import java.time.LocalDateTime
+import java.time.LocalDate
 import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -25,7 +26,8 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
         val actorId:String=UUID.randomUUID().toString(),val data:BudgetData=BudgetData(),
         val pending:List<BudgetCommand> = emptyList(),val session:CloudSession?=null,
         val dark:Boolean=false,val changes:List<ChangeLogEntry> = emptyList(),
-        val setupToken:String="",val revision:Long=0L,val members:Int=1
+        val setupToken:String="",val revision:Long=0L,val members:Int=1,
+        val recurringExpenses:List<RecurringExpense> = emptyList()
     )
     private var state:Vault
     init {
@@ -59,13 +61,43 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     fun changes():List<ChangeLogEntry> = synchronized(lock){state.changes}
     fun revision():Long=synchronized(lock){state.revision}
     fun members():Int=synchronized(lock){state.members}
+    fun recurringExpenses():List<RecurringExpense> = synchronized(lock){state.recurringExpenses.toList()}
     private fun commit(next:Vault){write(next);state=next}
-    fun enqueue(c:BudgetCommand)=synchronized(lock){
-        require(c.actorId==state.actorId)
-        require(state.pending.size<1000){"Слишком много изменений без синхронизации. Подключитесь к интернету."}
-        val updated=BudgetEngine.apply(state.data,c)
-        val entry=ChangeLogEntry((state.changes.maxOfOrNull { it.id }?:0)+1,c.entityId,action(c.kind),c.tx?.let { it.category+": "+Money.edit(it.amount)+" ₽" }?:c.text.ifBlank { if(c.value!=0L)Money.edit(c.value)+" ₽" else "" },LocalDateTime.now())
-        commit(state.copy(data=updated,pending=if(state.session!=null)state.pending+c else emptyList(),changes=(state.changes+entry).takeLast(500)))
+    private fun enqueued(v:Vault,c:BudgetCommand):Vault {
+        require(c.actorId==v.actorId)
+        require(v.session==null || v.pending.size<1000){"Слишком много изменений без синхронизации. Подключитесь к интернету."}
+        if((c.kind=="ACCOUNT_ARCHIVE"&&c.value==1L)||(c.kind=="ACCOUNT_PUT"&&c.account?.archived==true)){
+            val id=c.account?.id?:c.entityId
+            require(v.recurringExpenses.none { it.enabled&&it.accountId==id }){"Сначала измените счёт или отключите обязательные расходы для него"}
+        }
+        val updated=BudgetEngine.apply(v.data,c)
+        val entry=ChangeLogEntry((v.changes.maxOfOrNull { it.id }?:0)+1,c.entityId,action(c.kind),c.tx?.let { it.category+": "+Money.edit(it.amount)+" ₽" }?:c.text.ifBlank { if(c.value!=0L)Money.edit(c.value)+" ₽" else "" },LocalDateTime.now())
+        return v.copy(data=updated,pending=if(v.session!=null)v.pending+c else emptyList(),changes=(v.changes+entry).takeLast(500))
+    }
+    fun enqueue(c:BudgetCommand)=synchronized(lock){commit(enqueued(state,c))}
+    private fun materialized(v:Vault,today:LocalDate,updateId:String?=null):Vault {
+        var next=v
+        RecurringExpenseEngine.commands(v.data,v.recurringExpenses,v.actorId,today,updateId).forEach { next=enqueued(next,it) }
+        return next
+    }
+    fun generateRecurring(today:LocalDate=LocalDate.now()):Int=synchronized(lock){
+        val next=materialized(state,today)
+        val count=next.data.transactions.size-state.data.transactions.size
+        if(next!=state)commit(next)
+        count
+    }
+    fun saveRecurring(r:RecurringExpense,today:LocalDate=LocalDate.now())=synchronized(lock){
+        val caughtUp=materialized(state,today)
+        val old=caughtUp.recurringExpenses.firstOrNull { it.id==r.id }
+        val normalized=if(old?.enabled==false&&r.enabled)r.copy(resumeMonth=java.time.YearMonth.from(today).toString())else r
+        val rules=caughtUp.recurringExpenses.filterNot { it.id==r.id }+normalized
+        RecurringExpenseEngine.validate(rules,caughtUp.data)
+        require(!r.enabled || caughtUp.data.accounts.any { it.id==r.accountId&&!it.archived }){"Выберите активный счёт"}
+        commit(materialized(caughtUp.copy(recurringExpenses=rules),today,r.id))
+    }
+    fun removeRecurring(id:String,today:LocalDate=LocalDate.now())=synchronized(lock){
+        val caughtUp=materialized(state,today)
+        commit(caughtUp.copy(recurringExpenses=caughtUp.recurringExpenses.filterNot { it.id==id }))
     }
     fun setDark(value:Boolean)=synchronized(lock){commit(state.copy(dark=value))}
     fun setupToken():String=synchronized(lock){
@@ -77,7 +109,8 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     }
     fun connect(session:CloudSession,data:BudgetData,revision:Long,members:Int)=synchronized(lock){
         StateCodec.validate(data);require(session.actorId==state.actorId)
-        commit(state.copy(session=session,data=data,pending=emptyList(),revision=revision,members=members,setupToken=""))
+        val rules=if(session.role==Payer.PARTNER&&state.session==null)state.recurringExpenses.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }else state.recurringExpenses
+        commit(state.copy(session=session,data=data,pending=emptyList(),revision=revision,members=members,setupToken="",recurringExpenses=rules))
     }
     fun updateInvite(code:String,expires:String)=synchronized(lock){commit(state.copy(session=state.session?.copy(inviteCode=code,expiresAt=expires)))}
     fun acceptRemote(remote:BudgetData,revision:Long,members:Int,ack:Set<String>):List<String> = synchronized(lock){
@@ -90,12 +123,15 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     }
     fun detach()=synchronized(lock){
         var d=state.data
+        var rules=state.recurringExpenses
         if(state.session?.role==Payer.PARTNER)d=d.copy(myName=d.partnerName,partnerName=d.myName,transactions=d.transactions.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) })
+        if(state.session?.role==Payer.PARTNER)rules=rules.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }
         d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) })
-        commit(state.copy(data=d,session=null,pending=emptyList(),revision=0,members=1,setupToken=""))
+        commit(state.copy(data=d,session=null,pending=emptyList(),revision=0,members=1,setupToken="",recurringExpenses=rules))
     }
     fun backup(password:CharArray):ByteArray=synchronized(lock){
         val payload=JSONObject().put("schema",1).put("data",StateCodec.data(state.data)).put("role",state.session?.role?.name?:Payer.ME.name).put("dark",state.dark)
+            .put("recurringExpenses",JSONArray(state.recurringExpenses.map(StateCodec::recurring)))
         BackupCipher.encrypt(payload.toString().toByteArray(Charsets.UTF_8),password)
     }
     fun restore(bytes:ByteArray,password:CharArray)=synchronized(lock){
@@ -104,9 +140,12 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
         try {
             val j=JSONObject(String(plain,Charsets.UTF_8));require(j.getInt("schema")==1){"Неизвестная версия резервной копии"}
             var d=StateCodec.data(j.getJSONObject("data"))
+            var rules=StateCodec.recurringList(j)
             if(j.optString("role")=="PARTNER")d=d.copy(myName=d.partnerName,partnerName=d.myName,transactions=d.transactions.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) })
+            if(j.optString("role")=="PARTNER")rules=rules.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }
             d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) })
-            commit(state.copy(data=d,pending=emptyList(),session=null,dark=j.optBoolean("dark"),changes=emptyList(),setupToken="",revision=0,members=1))
+            RecurringExpenseEngine.validate(rules,d)
+            commit(state.copy(data=d,pending=emptyList(),session=null,dark=j.optBoolean("dark"),changes=emptyList(),setupToken="",revision=0,members=1,recurringExpenses=rules))
         } finally { plain.fill(0) }
     }
     fun reset()=synchronized(lock){require(state.session==null);commit(Vault(actorId=state.actorId,dark=state.dark))}
@@ -140,12 +179,13 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     private fun encode(v:Vault):JSONObject=JSONObject().put("schema",1).put("actorId",v.actorId).put("data",StateCodec.data(v.data)).put("pending",JSONArray(v.pending.map(StateCodec::command)))
         .put("session",v.session?.let(StateCodec::session)?:JSONObject.NULL).put("dark",v.dark).put("setupToken",v.setupToken).put("revision",v.revision).put("members",v.members)
         .put("changes",JSONArray(v.changes.map { JSONObject().put("id",it.id).put("entityId",it.entityId).put("action",it.action).put("description",it.description).put("changedAt",it.changedAt.toString()) }))
+        .put("recurringExpenses",JSONArray(v.recurringExpenses.map(StateCodec::recurring)))
     private fun decode(j:JSONObject):Vault {
         require(j.getInt("schema")==1)
         val changes=j.getJSONArray("changes")
         return Vault(j.getString("actorId"),StateCodec.data(j.getJSONObject("data")),StateCodec.commands(j.getJSONArray("pending")),j.optJSONObject("session")?.let(StateCodec::session),j.getBoolean("dark"),
             (0 until changes.length()).map { i->val c=changes.getJSONObject(i);ChangeLogEntry(c.getLong("id"),c.getString("entityId"),c.getString("action"),c.getString("description"),LocalDateTime.parse(c.getString("changedAt"))) },
-            j.optString("setupToken"),j.optLong("revision"),j.optInt("members",1))
+            j.optString("setupToken"),j.optLong("revision"),j.optInt("members",1),StateCodec.recurringList(j)).also { RecurringExpenseEngine.validate(it.recurringExpenses,it.data) }
     }
     private fun action(k:String):String=when(k){
         "TX_PUT"->"Операция сохранена";"TX_DELETE"->"Операция удалена";"TX_RESTORE"->"Операция восстановлена"

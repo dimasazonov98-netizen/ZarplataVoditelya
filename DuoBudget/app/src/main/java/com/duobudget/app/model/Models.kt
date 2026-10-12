@@ -32,4 +32,10 @@ data class BudgetCommand(
 )
 data class CloudSession(val familyId: String, val token: String, val actorId: String, val role: Payer,
     val inviteCode: String = "", val expiresAt: String = "")
+data class RecurringExpense(
+    val id: String = UUID.randomUUID().toString(), val name: String, val amount: Long,
+    val category: String, val accountId: String, val payer: Payer = Payer.ME,
+    val startMonth: String = java.time.YearMonth.now().toString(), val enabled: Boolean = true,
+    val resumeMonth: String = ""
+)
 
