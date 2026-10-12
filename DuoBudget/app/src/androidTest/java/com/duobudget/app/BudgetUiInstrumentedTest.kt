@@ -24,7 +24,10 @@ class BudgetUiInstrumentedTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     private lateinit var vm:AppViewModel
     private fun idle(expected:()->Boolean={true}){
-        rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value&&(expected()||vm.message.value.isNotBlank())};rule.waitForIdle()
+        rule.waitForIdle()
+        try { rule.waitUntil(20000){!vm.busy.value&&(expected()||vm.message.value.isNotBlank())} }
+        catch(e:Throwable){throw AssertionError("budget command did not complete: busy=${vm.busy.value}, message=${vm.message.value}, transactions=${vm.data.value.transactions.map{it.type to it.amount}}",e)}
+        rule.waitForIdle()
     }
     private fun node(text:String):SemanticsNodeInteraction {
         val matcher=hasText(text) or hasContentDescription(text)
@@ -44,7 +47,7 @@ class BudgetUiInstrumentedTest {
         rule.waitForIdle()
         val n=node(text)
         rule.waitUntil(10000){runCatching{n.assertIsEnabled();true}.getOrDefault(false)}
-        n.assertIsEnabled().performClick();rule.waitForIdle()
+        n.assertIsEnabled().performTouchInput { click() };rule.waitForIdle()
     }
     private fun fill(label:String,value:String){node(label).performTextReplacement(value);rule.waitForIdle();node(label).assertTextContains(value)}
     private fun shot(name:String){

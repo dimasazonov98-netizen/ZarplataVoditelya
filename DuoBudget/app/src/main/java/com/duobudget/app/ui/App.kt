@@ -124,6 +124,9 @@ private fun Enter(index:Int,content:@Composable ()->Unit){
     dismissButton:(@Composable ()->Unit)?=null
 ){
     // Dialogs have their own Android window; the parent content's alpha cannot hide them.
+    val focusManager=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    DisposableEffect(Unit){onDispose{focusManager.clearFocus(force=true);keyboard?.hide()}}
     if(LocalBudgetUnlocked.current)androidx.compose.material3.AlertDialog(
         onDismissRequest=onDismissRequest,title=title,text=text,
         confirmButton=confirmButton,dismissButton=dismissButton
