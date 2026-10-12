@@ -30,6 +30,17 @@ object BudgetEngine {
                 next
             }
             "RECURRING_DELETE" -> s.copy(recurringExpenses=s.recurringExpenses.map { if(it.id==c.entityId)it.copy(deleted=true,enabled=false)else it })
+            "RECURRING_ADOPT" -> {
+                val r=s.recurringExpenses.firstOrNull { it.id==c.entityId&&!it.deleted }?:error("Обязательный расход недоступен")
+                val month=YearMonth.parse(c.extra);val target=RecurringExpenseEngine.transactionId(r,month)
+                val old=s.transactions.firstOrNull { it.id==c.text }
+                if(old==null&&s.transactions.any { it.id==target })s else {
+                    requireNotNull(old)
+                    require(old.createdByUid==c.actorId && old.type==TransactionType.EXPENSE && old.accountId==r.accountId && YearMonth.from(old.createdAt)==month && old.note=="Обязательный расход · ${r.name}")
+                    require(s.transactions.none { it.id==target }) { "Платёж уже существует" }
+                    s.copy(transactions=s.transactions.map { if(it.id==old.id)it.copy(id=target)else it })
+                }
+            }
             "RECURRING_POST" -> {
                 val r=s.recurringExpenses.firstOrNull { it.id==c.entityId&&!it.deleted&&it.enabled }?:error("Обязательный расход недоступен")
                 val month=YearMonth.parse(c.text);val today=LocalDate.parse(c.extra)

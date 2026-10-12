@@ -190,10 +190,21 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
             val previous=data.transactions.firstOrNull { it.id.startsWith("fixed_${r.id}_") }
             if(session?.role==Payer.PARTNER&&previous==null&&data.accounts.any { it.id==mapped })r.copy(accountId=mapped)else r
         }
-        val merged=data.copy(recurringExpenses=data.recurringExpenses+migrated)
+        var merged=data.copy(recurringExpenses=data.recurringExpenses+migrated)
+        val adopts=mutableListOf<BudgetCommand>()
+        val renamed=mutableMapOf<String,String>()
+        if(session?.role==Payer.PARTNER)for(r in migrated)for(t in data.transactions){
+            val month=java.time.YearMonth.from(t.createdAt)
+            val target=RecurringExpenseEngine.transactionId(r,month)
+            val oldId="t_"+java.security.MessageDigest.getInstance("SHA-256").digest((actor+":"+target).toByteArray()).joinToString("") { "%02x".format(it) }.take(48)
+            if(t.id==oldId&&t.createdByUid==actor&&t.accountId==r.accountId&&t.note=="Обязательный расход · ${r.name}"){
+                val c=BudgetCommand(kind="RECURRING_ADOPT",actorId=actor,entityId=r.id,text=t.id,extra=month.toString())
+                merged=BudgetEngine.apply(merged,c);adopts.add(c);renamed[t.id]=target
+            }
+        }
         RecurringExpenseEngine.validate(merged.recurringExpenses,merged)
-        return Vault(actor,merged,StateCodec.commands(j.getJSONArray("pending"))+
-            (if(session!=null)migrated.map { BudgetCommand(kind="RECURRING_PUT",actorId=actor,recurring=it) }else emptyList()),session,j.getBoolean("dark"),
+        val pending=StateCodec.commands(j.getJSONArray("pending")).map { c -> c.copy(entityId=renamed[c.entityId]?:c.entityId,tx=c.tx?.let { it.copy(id=renamed[it.id]?:it.id) }) }
+        return Vault(actor,merged,(if(session!=null)migrated.map { BudgetCommand(kind="RECURRING_PUT",actorId=actor,recurring=it) }+adopts else emptyList())+pending,session,j.getBoolean("dark"),
             (0 until changes.length()).map { i->val c=changes.getJSONObject(i);ChangeLogEntry(c.getLong("id"),c.getString("entityId"),c.getString("action"),c.getString("description"),LocalDateTime.parse(c.getString("changedAt"))) },
             j.optString("setupToken"),j.optLong("revision"),j.optInt("members",1))
     }

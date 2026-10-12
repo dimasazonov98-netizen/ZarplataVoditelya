@@ -128,6 +128,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
                 val serverErrors=if(rejects==null)emptyList()else(0 until rejects.length()).map{rejects.getJSONObject(it).getString("error")}
                 val localErrors=withContext(Dispatchers.IO){s.acceptRemote(StateCodec.data(j.getJSONObject("state")),j.getLong("revision"),j.getInt("members"),ids)}
                 refresh()
+                materializeRecurring()
                 if(serverErrors.isNotEmpty()||localErrors.isNotEmpty())_message.value=(serverErrors+localErrors).distinct().joinToString("\n")
                 if(s.pending().isEmpty()){_syncState.value=SyncState.SYNCED;_syncMessage.value="Обновлено "+java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));return@withLock}
             }

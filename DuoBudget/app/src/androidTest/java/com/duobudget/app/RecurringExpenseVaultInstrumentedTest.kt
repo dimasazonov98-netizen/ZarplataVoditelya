@@ -109,4 +109,32 @@ class RecurringExpenseVaultInstrumentedTest {
         val reopened=LocalStore(context,n,false);assertTrue(reopened.pending().isEmpty());assertEquals(1,reopened.data().transactions.size)
     }
 
+    @Test fun oldPartnerJoinKeepsImportedChargesWithoutDuplicatingMonths(){
+        val n=name();val old=LocalStore(context,n,false)
+        fun hash(value:String)=java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }.take(48)
+        val mapped="a_"+hash(old.actorId+":sber")
+        old.connect(CloudSession("family","test",old.actorId,Payer.PARTNER),BudgetData(accounts=BudgetData().accounts+MoneyAccount(mapped,"Личный банк")),1,2)
+        old.saveRecurring(r.copy(startMonth="2024-01",accountId=mapped,payer=Payer.PARTNER),january)
+        old.acceptRemote(old.data(),2,2,old.pending().map{it.id}.toSet())
+        val f=File(context.filesDir,n);val bytes=f.readBytes();val magic="DUOVLT1".toByteArray()
+        val key=java.security.KeyStore.getInstance("AndroidKeyStore").apply{load(null)}.getKey("duobudget.final."+n,null) as javax.crypto.SecretKey
+        val decrypt=javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply{init(javax.crypto.Cipher.DECRYPT_MODE,key,javax.crypto.spec.GCMParameterSpec(128,bytes.copyOfRange(7,19)));updateAAD(magic)}
+        val json=org.json.JSONObject(String(decrypt.doFinal(bytes.copyOfRange(19,bytes.size))))
+        val data=json.getJSONObject("data");val rules=data.getJSONArray("recurringExpenses")
+        rules.getJSONObject(0).put("accountId","sber");json.put("recurringExpenses",rules);data.remove("recurringExpenses")
+        val tx=data.getJSONArray("transactions").getJSONObject(0)
+        tx.put("id","t_"+hash(old.actorId+":"+tx.getString("id")))
+        val remote=com.duobudget.app.data.StateCodec.data(data)
+        val encrypt=javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply{init(javax.crypto.Cipher.ENCRYPT_MODE,key);updateAAD(magic)}
+        f.writeBytes(magic+encrypt.iv+encrypt.doFinal(json.toString().toByteArray()))
+        val migrated=LocalStore(context,n,false)
+        assertEquals(mapped,migrated.recurringExpenses().single().accountId)
+        assertEquals(listOf("RECURRING_PUT","RECURRING_ADOPT"),migrated.pending().map{it.kind})
+        assertEquals(0,migrated.generateRecurring(january))
+        val shared=migrated.pending().fold(remote,BudgetEngine::apply)
+        migrated.acceptRemote(shared,3,2,migrated.pending().map{it.id}.toSet())
+        assertEquals(1,migrated.data().transactions.size);assertEquals(700000L,migrated.data().transactions.single().amount)
+        assertEquals("fixed_credit_2024-01",migrated.data().transactions.single().id)
+    }
+
 }
