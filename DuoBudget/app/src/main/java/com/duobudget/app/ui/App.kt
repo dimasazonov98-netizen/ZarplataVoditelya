@@ -183,8 +183,8 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                 ){padding->
                     Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)){
                         if(route!="home")Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),horizontalArrangement=Arrangement.SpaceBetween){
-                            TextButton(onClick={::goBack},modifier=Modifier.testTag("nav-back")){Text("‹ Назад")}
-                            TextButton(onClick={::goHome},modifier=Modifier.testTag("nav-home")){Text("Домой")}
+                            TextButton(onClick=::goBack,modifier=Modifier.testTag("nav-back")){Text("‹ Назад")}
+                            TextButton(onClick=::goHome,modifier=Modifier.testTag("nav-home")){Text("Домой")}
                         }
                     Box(Modifier.weight(1f).fillMaxWidth()){
                         NavHost(nav,startDestination="home"){
@@ -199,7 +199,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                             composable("edit/{id}"){e->
                                 val data by vm.data.collectAsStateWithLifecycle()
                                 val t=data.transactions.firstOrNull{it.id==e.arguments?.getString("id")}
-                                if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick={::goBack}){Text("Назад")}}
+                                if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick=::goBack){Text("Назад")}}
                                 else TransactionForm(vm,t,t.type,::goBack)
                             }
                         }
