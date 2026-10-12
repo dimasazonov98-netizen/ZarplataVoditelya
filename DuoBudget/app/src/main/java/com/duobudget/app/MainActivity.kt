@@ -17,8 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,9 +52,7 @@ class MainActivity:AppCompatActivity() {
                 Box(Modifier.fillMaxSize()){
                     // Keep drafts and document-picker callbacks alive when the app locks.
                     if(hasUnlocked.value){
-                        val privacy=if(unlocked.value)Modifier else Modifier.alpha(0f).clearAndSetSemantics{}.pointerInput(Unit){
-                            awaitPointerEventScope{while(true){awaitPointerEvent(PointerEventPass.Initial).changes.forEach{it.consume()}}}
-                        }
+                        val privacy=if(unlocked.value)Modifier else Modifier.alpha(0f).clearAndSetSemantics{}
                         Box(Modifier.fillMaxSize().then(privacy)){DuoBudgetApp(expenseRequest.value,unlocked.value)}
                     }
                     if(!unlocked.value){

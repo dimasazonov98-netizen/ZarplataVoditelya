@@ -4,6 +4,7 @@ package com.duobudget.app.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,6 +59,7 @@ import java.time.format.ResolverStyle
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val moneyFormat=NumberFormat.getNumberInstance(Locale.forLanguageTag("ru-RU")).apply{minimumFractionDigits=0;maximumFractionDigits=2}
 private fun rub(n:Long)=moneyFormat.format(BigDecimal.valueOf(n,2))+" ₽"
@@ -133,6 +136,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val focusManager=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
     LaunchedEffect(unlocked){if(!unlocked)focusManager.clearFocus(force=true)}
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner,unlocked){
@@ -157,40 +161,70 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                 val tabs=listOf(Triple("home","Главная","⌂"),Triple("history","Операции","↕"),Triple("savings","Цели","◎"),Triple("settings","Ещё","•••"))
                 val mainRoutes=tabs.map{it.first}.toSet()+"budget"
                 var addSheet by rememberSaveable{mutableStateOf(false)}
+                val sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)
+                val scope=rememberCoroutineScope()
+                var choosingType by remember{mutableStateOf(false)}
+                val currentUnlocked by rememberUpdatedState(unlocked)
+                fun goHome(){
+                    focusManager.clearFocus(force=true);keyboard?.hide()
+                    nav.navigate("home"){popUpTo("home"){inclusive=false};launchSingleTop=true}
+                }
+                fun goBack(){
+                    focusManager.clearFocus(force=true);keyboard?.hide()
+                    if(!nav.popBackStack())goHome()
+                }
+                LaunchedEffect(unlocked){if(!unlocked)addSheet=false}
+                BackHandler(enabled=unlocked&&route!="home"&&!addSheet){goBack()}
                 LaunchedEffect(openExpenseRequest){if(openExpenseRequest>0)nav.navigate("entry"){launchSingleTop=true}}
                 Scaffold(
                     modifier=Modifier.testTag("app"),
                     containerColor=Color.Transparent,
                     bottomBar={if(route in mainRoutes)GlassBottomBar(route,tabs,onAdd={addSheet=true}){destination->nav.navigate(destination){popUpTo("home"){saveState=true};launchSingleTop=true;restoreState=true}}}
                 ){padding->
-                    Box(Modifier.fillMaxSize().padding(padding)){
+                    Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)){
+                        if(route!="home")Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),horizontalArrangement=Arrangement.SpaceBetween){
+                            TextButton(onClick={::goBack},modifier=Modifier.testTag("nav-back")){Text("‹ Назад")}
+                            TextButton(onClick={::goHome},modifier=Modifier.testTag("nav-home")){Text("Домой")}
+                        }
+                    Box(Modifier.weight(1f).fillMaxWidth()){
                         NavHost(nav,startDestination="home"){
                             composable("home"){HomeScreen(vm,{nav.navigate("accounts")},{nav.navigate("settings")},{nav.navigate("budget")})}
                             composable("history"){HistoryScreen(vm){nav.navigate("edit/"+it)}}
                             composable("budget"){BudgetScreen(vm)}
                             composable("savings"){SavingsScreen(vm)}
                             composable("settings"){SettingsScreen(vm){nav.navigate("accounts")}}
-                            composable("accounts"){AccountsScreen(vm){nav.popBackStack()}}
-                            composable("entry"){TransactionForm(vm,null,TransactionType.EXPENSE){nav.popBackStack()}}
-                            composable("entry/{type}"){e->TransactionForm(vm,null,runCatching{TransactionType.valueOf(e.arguments?.getString("type").orEmpty())}.getOrDefault(TransactionType.EXPENSE)){nav.popBackStack()}}
+                            composable("accounts"){AccountsScreen(vm)}
+                            composable("entry"){TransactionForm(vm,null,TransactionType.EXPENSE,::goBack)}
+                            composable("entry/{type}"){e->TransactionForm(vm,null,runCatching{TransactionType.valueOf(e.arguments?.getString("type").orEmpty())}.getOrDefault(TransactionType.EXPENSE),::goBack)}
                             composable("edit/{id}"){e->
                                 val data by vm.data.collectAsStateWithLifecycle()
                                 val t=data.transactions.firstOrNull{it.id==e.arguments?.getString("id")}
-                                if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick={nav.popBackStack()}){Text("Назад")}}
-                                else TransactionForm(vm,t,t.type){nav.popBackStack()}
+                                if(t==null)Column(Modifier.padding(24.dp)){Text("Операция не найдена");TextButton(onClick={::goBack}){Text("Назад")}}
+                                else TransactionForm(vm,t,t.type,::goBack)
                             }
                         }
                         if(busy)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
                     }
+                    }
                 }
-                if(addSheet)ModalBottomSheet(onDismissRequest={addSheet=false},containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.96f)){
+                if(addSheet&&unlocked)ModalBottomSheet(onDismissRequest={addSheet=false},sheetState=sheetState,containerColor=MaterialTheme.colorScheme.surface.copy(alpha=.96f)){
                     Text("Добавить операцию",Modifier.padding(horizontal=24.dp,vertical=8.dp),style=MaterialTheme.typography.titleLarge)
                     listOf(
                         Triple(TransactionType.EXPENSE,"+ Расход","−"),Triple(TransactionType.INCOME,"+ Доход","+") ,
                         Triple(TransactionType.TRANSFER,"Перевод","↔"),Triple(TransactionType.REFUND,"Возврат","↩"),Triple(TransactionType.CASHBACK,"Кэшбэк","◇")
                     ).forEach{(type,label,icon)->ListItem(
                         headlineContent={Text(label,fontWeight=FontWeight.SemiBold)},leadingContent={Text(icon,fontSize=22.sp)},
-                        modifier=Modifier.clickable{addSheet=false;nav.navigate("entry/"+type.name)}
+                        modifier=Modifier.testTag("add-"+type.name).clickable{
+                            if(!choosingType){
+                                choosingType=true
+                                scope.launch{
+                                    sheetState.hide()
+                                    addSheet=false
+                                    choosingType=false
+                                    if(currentUnlocked)nav.navigate("entry/"+type.name)
+                                }
+                            }
+                        }
                     )}
                     Spacer(Modifier.height(20.dp))
                 }
@@ -227,7 +261,7 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
                 val selected=route==t.first
                 val foreground=if(selected)MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 Column(
-                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(19.dp)).background(if(selected)MaterialTheme.colorScheme.primary else Color.Transparent).clickable{onNavigate(t.first)}.padding(vertical=6.dp),
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(19.dp)).background(if(selected)MaterialTheme.colorScheme.primary else Color.Transparent).testTag("tab-"+t.first).clickable{onNavigate(t.first)}.padding(vertical=6.dp),
                     horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center
                 ){
                     Text(t.third,color=foreground,fontSize=18.sp,lineHeight=18.sp)
@@ -480,11 +514,11 @@ private fun GlassBottomBar(route:String,tabs:List<Triple<String,String,String>>,
     }}
     if(returnMoney)AppDialog(onDismissRequest={returnMoney=false},title={Text("Вернуть из цели?")},text={Text(rub(amount?:0)+" вернётся в свободные накопления.")},confirmButton={TextButton(onClick={vm.withdrawGoal(g.id,amount?:0);value="";returnMoney=false}){Text("Вернуть")}},dismissButton={TextButton(onClick={returnMoney=false}){Text("Отмена")}})
 }
-@Composable private fun AccountsScreen(vm:AppViewModel,onBack:()->Unit){
+@Composable private fun AccountsScreen(vm:AppViewModel){
     val d by vm.data.collectAsStateWithLifecycle();val busy by vm.busy.collectAsStateWithLifecycle()
     var editing by remember{mutableStateOf<MoneyAccount?>(null)};var create by remember{mutableStateOf(false)};var archive by remember{mutableStateOf<MoneyAccount?>(null)}
     LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-        item{Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){Title("Счета")};TextButton(onClick=onBack){Text("Назад")}}}
+        item{Title("Счета")}
         item{Text("Начальный остаток — деньги на счёте до первой записанной операции. Архивный счёт остаётся в истории и общем балансе.",style=MaterialTheme.typography.bodySmall)}
         item{Button(onClick={create=true},modifier=Modifier.fillMaxWidth()){Text("+ Добавить счёт")}}
         items(d.accounts,key={it.id}){a->GlassCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
