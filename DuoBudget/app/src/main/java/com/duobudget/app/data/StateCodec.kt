@@ -7,9 +7,9 @@ import java.time.OffsetDateTime
 
 object StateCodec {
     fun recurring(r: RecurringExpense) = JSONObject().put("id",r.id).put("name",r.name).put("amount",r.amount)
-        .put("category",r.category).put("accountId",r.accountId).put("payer",r.payer.name).put("startMonth",r.startMonth).put("enabled",r.enabled).put("resumeMonth",r.resumeMonth).put("dayOfMonth",r.dayOfMonth).put("reminderEnabled",r.reminderEnabled)
+        .put("category",r.category).put("accountId",r.accountId).put("payer",r.payer.name).put("startMonth",r.startMonth).put("enabled",r.enabled).put("resumeMonth",r.resumeMonth).put("dayOfMonth",r.dayOfMonth).put("reminderEnabled",r.reminderEnabled).put("deleted",r.deleted)
     fun recurring(j: JSONObject) = RecurringExpense(j.getString("id"),j.getString("name"),j.whole("amount"),
-        j.getString("category"),j.getString("accountId"),Payer.valueOf(j.getString("payer")),j.getString("startMonth"),j.optBoolean("enabled",true),j.optString("resumeMonth"),j.whole("dayOfMonth",1L).also{require(it in 1L..31L)}.toInt(),j.optBoolean("reminderEnabled",true))
+        j.getString("category"),j.getString("accountId"),Payer.valueOf(j.getString("payer")),j.getString("startMonth"),j.optBoolean("enabled",true),j.optString("resumeMonth"),j.whole("dayOfMonth",1L).also{require(it in 1L..31L)}.toInt(),j.optBoolean("reminderEnabled",true),j.optBoolean("deleted"))
     fun recurringList(j: JSONObject): List<RecurringExpense> = if(j.has("recurringExpenses"))objects(j.getJSONArray("recurringExpenses")).map(::recurring) else emptyList()
     private fun JSONObject.whole(key:String,default:Long?=null):Long {
         if(!has(key)&&default!=null)return default
@@ -30,14 +30,15 @@ object StateCodec {
     fun goal(g: Goal) = JSONObject().put("id",g.id).put("name",g.name).put("targetAmount",g.targetAmount).put("currentAmount",g.currentAmount).put("joint",g.joint).put("createdAt",g.createdAt.toString())
     fun goal(j: JSONObject) = Goal(j.getString("id"),j.getString("name"),j.whole("targetAmount"),j.whole("currentAmount"),j.optBoolean("joint",true),date(j.getString("createdAt")))
     fun data(s: BudgetData) = JSONObject().put("transactions",JSONArray(s.transactions.map(::tx))).put("accounts",JSONArray(s.accounts.map(::account)))
-        .put("budget",s.budget).put("savings",s.savings).put("categoryLimits",JSONObject(s.categoryLimits)).put("goals",JSONArray(s.goals.map(::goal))).put("myName",s.myName).put("partnerName",s.partnerName)
+        .put("budget",s.budget).put("savings",s.savings).put("categoryLimits",JSONObject(s.categoryLimits)).put("goals",JSONArray(s.goals.map(::goal))).put("myName",s.myName).put("partnerName",s.partnerName).put("recurringExpenses",JSONArray(s.recurringExpenses.map(::recurring)))
     fun data(j: JSONObject): BudgetData {
         val limits=j.getJSONObject("categoryLimits")
         return BudgetData(objects(j.getJSONArray("transactions")).map(::tx),objects(j.getJSONArray("accounts")).map(::account),
             j.whole("budget"),j.whole("savings"),limits.keys().asSequence().associateWith { limits.whole(it) },
-            objects(j.getJSONArray("goals")).map(::goal),j.getString("myName"),j.getString("partnerName")).also(::validate)
+            objects(j.getJSONArray("goals")).map(::goal),j.getString("myName"),j.getString("partnerName"),recurringList(j)).also(::validate)
     }
     fun validate(s: BudgetData) {
+        RecurringExpenseEngine.validate(s.recurringExpenses,s)
         require(s.transactions.size<=20000 && s.accounts.size in 1..100 && s.goals.size<=100 && s.categoryLimits.size<=100)
         require(s.myName.isNotBlank() && s.myName.length<=60 && s.partnerName.isNotBlank() && s.partnerName.length<=60)
         require(s.budget in 0..Money.MAX && s.savings in 0..Money.MAX)
@@ -54,9 +55,9 @@ object StateCodec {
         s.categoryLimits.forEach { (k,v)-> require(k.isNotBlank() && k.length<=60 && k !in listOf("__proto__","prototype","constructor") && v in 1..Money.MAX) }
     }
     fun command(c: BudgetCommand) = JSONObject().put("id",c.id).put("kind",c.kind).put("actorId",c.actorId).put("entityId",c.entityId).put("value",c.value).put("text",c.text).put("extra",c.extra)
-        .also { j-> c.tx?.let { j.put("tx",tx(it)) };c.goal?.let { j.put("goal",goal(it)) };c.account?.let { j.put("account",account(it)) } }
+        .also { j-> c.tx?.let { j.put("tx",tx(it)) };c.goal?.let { j.put("goal",goal(it)) };c.account?.let { j.put("account",account(it)) };c.recurring?.let { j.put("recurring",recurring(it)) } }
     fun command(j: JSONObject) = BudgetCommand(j.getString("id"),j.getString("kind"),j.getString("actorId"),j.optString("entityId"),j.whole("value",0L),j.optString("text"),j.optString("extra"),
-        j.optJSONObject("tx")?.let(::tx),j.optJSONObject("goal")?.let(::goal),j.optJSONObject("account")?.let(::account))
+        j.optJSONObject("tx")?.let(::tx),j.optJSONObject("goal")?.let(::goal),j.optJSONObject("account")?.let(::account),j.optJSONObject("recurring")?.let(::recurring))
     fun session(s: CloudSession) = JSONObject().put("familyId",s.familyId).put("token",s.token).put("actorId",s.actorId).put("role",s.role.name).put("inviteCode",s.inviteCode).put("expiresAt",s.expiresAt)
     fun session(j: JSONObject) = CloudSession(j.getString("familyId"),j.getString("token"),j.getString("actorId"),Payer.valueOf(j.getString("role")),j.optString("inviteCode"),j.optString("expiresAt"))
     fun commands(a: JSONArray) = objects(a).map(::command)

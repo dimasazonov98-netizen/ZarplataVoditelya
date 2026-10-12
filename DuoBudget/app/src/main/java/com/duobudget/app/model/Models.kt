@@ -23,12 +23,14 @@ data class BudgetData(
     val transactions: List<MoneyTransaction> = emptyList(),
     val accounts: List<MoneyAccount> = listOf(MoneyAccount("sber", "Сбербанк"), MoneyAccount("tbank", "Т-Банк"), MoneyAccount("cash", "Наличные")),
     val budget: Long = 0L, val savings: Long = 0L, val categoryLimits: Map<String, Long> = emptyMap(),
-    val goals: List<Goal> = emptyList(), val myName: String = "Я", val partnerName: String = "Партнёр"
+    val goals: List<Goal> = emptyList(), val myName: String = "Я", val partnerName: String = "Партнёр",
+    val recurringExpenses: List<RecurringExpense> = emptyList()
 )
 data class BudgetCommand(
     val id: String = UUID.randomUUID().toString(), val kind: String, val actorId: String,
     val entityId: String = "", val value: Long = 0L, val text: String = "", val extra: String = "",
-    val tx: MoneyTransaction? = null, val goal: Goal? = null, val account: MoneyAccount? = null
+    val tx: MoneyTransaction? = null, val goal: Goal? = null, val account: MoneyAccount? = null,
+    val recurring: RecurringExpense? = null
 )
 data class CloudSession(val familyId: String, val token: String, val actorId: String, val role: Payer,
     val inviteCode: String = "", val expiresAt: String = "")
@@ -36,6 +38,7 @@ data class RecurringExpense(
     val id: String = UUID.randomUUID().toString(), val name: String, val amount: Long,
     val category: String, val accountId: String, val payer: Payer = Payer.ME,
     val startMonth: String = java.time.YearMonth.now().toString(), val enabled: Boolean = true,
-    val resumeMonth: String = "", val dayOfMonth: Int = 1, val reminderEnabled: Boolean = true
+    val resumeMonth: String = "", val dayOfMonth: Int = 1, val reminderEnabled: Boolean = true,
+    val deleted: Boolean = false
 )
 

@@ -75,7 +75,7 @@ fun RecurringExpensesScreen(vm:AppViewModel,onAdd:()->Unit,onEdit:(String)->Unit
             Text(recurringMoney(total),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
         }}}
         item{Button(onClick=onAdd,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("fixed-add")){Text("+ Обязательный расход")}}
-        if(session!=null)item{Text("Правила создают расходы на этом телефоне. Записанные операции синхронизируются с партнёром. Не создавайте одно и то же правило на обоих телефонах.",style=MaterialTheme.typography.bodySmall)}
+        if(session!=null)item{Text("Обязательные расходы общие для пары. Название, сумма, дата оплаты и изменения синхронизируются. Каждый платёж учитывается один раз. Для этого обновления установите новую версию на оба телефона.",style=MaterialTheme.typography.bodySmall)}
         if(rules.isEmpty())item{Text("Добавь первый платёж — например, ежемесячный кредит.",Modifier.padding(vertical=16.dp))}
         items(rules.sortedBy{it.name},key={it.id}){r->
             val account=data.accounts.firstOrNull{it.id==r.accountId}

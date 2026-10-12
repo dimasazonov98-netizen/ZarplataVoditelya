@@ -61,14 +61,14 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     fun changes():List<ChangeLogEntry> = synchronized(lock){state.changes}
     fun revision():Long=synchronized(lock){state.revision}
     fun members():Int=synchronized(lock){state.members}
-    fun recurringExpenses():List<RecurringExpense> = synchronized(lock){state.recurringExpenses.toList()}
+    fun recurringExpenses():List<RecurringExpense> = synchronized(lock){state.data.recurringExpenses.filterNot { it.deleted }}
     private fun commit(next:Vault){write(next);state=next}
     private fun enqueued(v:Vault,c:BudgetCommand):Vault {
         require(c.actorId==v.actorId)
         require(v.session==null || v.pending.size<1000){"Слишком много изменений без синхронизации. Подключитесь к интернету."}
         if((c.kind=="ACCOUNT_ARCHIVE"&&c.value==1L)||(c.kind=="ACCOUNT_PUT"&&c.account?.archived==true)){
             val id=c.account?.id?:c.entityId
-            require(v.recurringExpenses.none { it.enabled&&it.accountId==id }){"Сначала измените счёт или отключите обязательные расходы для него"}
+            require(v.data.recurringExpenses.none { !it.deleted&&it.enabled&&it.accountId==id }){"Сначала измените счёт или отключите обязательные расходы для него"}
         }
         val updated=BudgetEngine.apply(v.data,c)
         val entry=ChangeLogEntry((v.changes.maxOfOrNull { it.id }?:0)+1,c.entityId,action(c.kind),c.tx?.let { it.category+": "+Money.edit(it.amount)+" ₽" }?:c.text.ifBlank { if(c.value!=0L)Money.edit(c.value)+" ₽" else "" },LocalDateTime.now())
@@ -77,7 +77,7 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     fun enqueue(c:BudgetCommand)=synchronized(lock){commit(enqueued(state,c))}
     private fun materialized(v:Vault,today:LocalDate,updateId:String?=null):Vault {
         var next=v
-        RecurringExpenseEngine.commands(v.data,v.recurringExpenses,v.actorId,today,updateId).forEach { next=enqueued(next,it) }
+        RecurringExpenseEngine.commands(v.data,v.data.recurringExpenses,v.actorId,today,updateId).forEach { next=enqueued(next,it) }
         return next
     }
     fun generateRecurring(today:LocalDate=LocalDate.now()):Int=synchronized(lock){
@@ -88,16 +88,14 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     }
     fun saveRecurring(r:RecurringExpense,today:LocalDate=LocalDate.now())=synchronized(lock){
         val caughtUp=materialized(state,today)
-        val old=caughtUp.recurringExpenses.firstOrNull { it.id==r.id }
+        val old=caughtUp.data.recurringExpenses.firstOrNull { it.id==r.id }
         val normalized=if(old?.enabled==false&&r.enabled)r.copy(resumeMonth=java.time.YearMonth.from(today).toString())else r
-        val rules=caughtUp.recurringExpenses.filterNot { it.id==r.id }+normalized
-        RecurringExpenseEngine.validate(rules,caughtUp.data)
-        require(!r.enabled || caughtUp.data.accounts.any { it.id==r.accountId&&!it.archived }){"Выберите активный счёт"}
-        commit(materialized(caughtUp.copy(recurringExpenses=rules),today,r.id))
+        val next=enqueued(caughtUp,BudgetCommand(kind="RECURRING_PUT",actorId=state.actorId,recurring=normalized))
+        commit(materialized(next,today,r.id))
     }
     fun removeRecurring(id:String,today:LocalDate=LocalDate.now())=synchronized(lock){
         val caughtUp=materialized(state,today)
-        commit(caughtUp.copy(recurringExpenses=caughtUp.recurringExpenses.filterNot { it.id==id }))
+        commit(enqueued(caughtUp,BudgetCommand(kind="RECURRING_DELETE",actorId=state.actorId,entityId=id)))
     }
     fun setDark(value:Boolean)=synchronized(lock){commit(state.copy(dark=value))}
     fun setupToken():String=synchronized(lock){
@@ -109,8 +107,7 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     }
     fun connect(session:CloudSession,data:BudgetData,revision:Long,members:Int)=synchronized(lock){
         StateCodec.validate(data);require(session.actorId==state.actorId)
-        val rules=if(session.role==Payer.PARTNER&&state.session==null)state.recurringExpenses.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }else state.recurringExpenses
-        commit(state.copy(session=session,data=data,pending=emptyList(),revision=revision,members=members,setupToken="",recurringExpenses=rules))
+        commit(state.copy(session=session,data=data,pending=emptyList(),revision=revision,members=members,setupToken="",recurringExpenses=emptyList()))
     }
     fun updateInvite(code:String,expires:String)=synchronized(lock){commit(state.copy(session=state.session?.copy(inviteCode=code,expiresAt=expires)))}
     fun acceptRemote(remote:BudgetData,revision:Long,members:Int,ack:Set<String>):List<String> = synchronized(lock){
@@ -123,15 +120,15 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     }
     fun detach()=synchronized(lock){
         var d=state.data
-        var rules=state.recurringExpenses
+        var rules=state.data.recurringExpenses
         if(state.session?.role==Payer.PARTNER)d=d.copy(myName=d.partnerName,partnerName=d.myName,transactions=d.transactions.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) })
         if(state.session?.role==Payer.PARTNER)rules=rules.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }
-        d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) })
-        commit(state.copy(data=d,session=null,pending=emptyList(),revision=0,members=1,setupToken="",recurringExpenses=rules))
+        d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) },recurringExpenses=rules)
+        commit(state.copy(data=d,session=null,pending=emptyList(),revision=0,members=1,setupToken="",recurringExpenses=emptyList()))
     }
     fun backup(password:CharArray):ByteArray=synchronized(lock){
         val payload=JSONObject().put("schema",1).put("data",StateCodec.data(state.data)).put("role",state.session?.role?.name?:Payer.ME.name).put("dark",state.dark)
-            .put("recurringExpenses",JSONArray(state.recurringExpenses.map(StateCodec::recurring)))
+            .put("recurringExpenses",JSONArray(state.data.recurringExpenses.map(StateCodec::recurring)))
         BackupCipher.encrypt(payload.toString().toByteArray(Charsets.UTF_8),password)
     }
     fun restore(bytes:ByteArray,password:CharArray)=synchronized(lock){
@@ -140,12 +137,12 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
         try {
             val j=JSONObject(String(plain,Charsets.UTF_8));require(j.getInt("schema")==1){"Неизвестная версия резервной копии"}
             var d=StateCodec.data(j.getJSONObject("data"))
-            var rules=StateCodec.recurringList(j)
+            var rules=if(j.getJSONObject("data").has("recurringExpenses"))d.recurringExpenses else StateCodec.recurringList(j)
             if(j.optString("role")=="PARTNER")d=d.copy(myName=d.partnerName,partnerName=d.myName,transactions=d.transactions.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) })
             if(j.optString("role")=="PARTNER")rules=rules.map { it.copy(payer=if(it.payer==Payer.ME)Payer.PARTNER else Payer.ME) }
-            d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) })
+            d=d.copy(transactions=d.transactions.map { it.copy(createdByUid=state.actorId) },recurringExpenses=rules)
             RecurringExpenseEngine.validate(rules,d)
-            commit(state.copy(data=d,pending=emptyList(),session=null,dark=j.optBoolean("dark"),changes=emptyList(),setupToken="",revision=0,members=1,recurringExpenses=rules))
+            commit(state.copy(data=d,pending=emptyList(),session=null,dark=j.optBoolean("dark"),changes=emptyList(),setupToken="",revision=0,members=1,recurringExpenses=emptyList()))
         } finally { plain.fill(0) }
     }
     fun reset()=synchronized(lock){require(state.session==null);commit(Vault(actorId=state.actorId,dark=state.dark))}
@@ -183,11 +180,25 @@ class LocalStore(private val context: Context, vaultName: String="duobudget.v1.v
     private fun decode(j:JSONObject):Vault {
         require(j.getInt("schema")==1)
         val changes=j.getJSONArray("changes")
-        return Vault(j.getString("actorId"),StateCodec.data(j.getJSONObject("data")),StateCodec.commands(j.getJSONArray("pending")),j.optJSONObject("session")?.let(StateCodec::session),j.getBoolean("dark"),
+        val actor=j.getString("actorId")
+        val data=StateCodec.data(j.getJSONObject("data"))
+        val session=j.optJSONObject("session")?.let(StateCodec::session)
+        // One-time migration of 1.3/1.4 local rules into the shared command queue.
+        val legacy=if(j.getJSONObject("data").has("recurringExpenses"))emptyList() else StateCodec.recurringList(j)
+        val migrated=legacy.map { r ->
+            val mapped="a_"+java.security.MessageDigest.getInstance("SHA-256").digest((actor+":"+r.accountId).toByteArray()).joinToString("") { "%02x".format(it) }.take(48)
+            val previous=data.transactions.firstOrNull { it.id.startsWith("fixed_${r.id}_") }
+            if(session?.role==Payer.PARTNER&&previous==null&&data.accounts.any { it.id==mapped })r.copy(accountId=mapped)else r
+        }
+        val merged=data.copy(recurringExpenses=data.recurringExpenses+migrated)
+        RecurringExpenseEngine.validate(merged.recurringExpenses,merged)
+        return Vault(actor,merged,StateCodec.commands(j.getJSONArray("pending"))+
+            (if(session!=null)migrated.map { BudgetCommand(kind="RECURRING_PUT",actorId=actor,recurring=it) }else emptyList()),session,j.getBoolean("dark"),
             (0 until changes.length()).map { i->val c=changes.getJSONObject(i);ChangeLogEntry(c.getLong("id"),c.getString("entityId"),c.getString("action"),c.getString("description"),LocalDateTime.parse(c.getString("changedAt"))) },
-            j.optString("setupToken"),j.optLong("revision"),j.optInt("members",1),StateCodec.recurringList(j)).also { RecurringExpenseEngine.validate(it.recurringExpenses,it.data) }
+            j.optString("setupToken"),j.optLong("revision"),j.optInt("members",1))
     }
     private fun action(k:String):String=when(k){
+        "RECURRING_PUT"->"Обязательный расход сохранён";"RECURRING_DELETE"->"Обязательный расход удалён";"RECURRING_POST"->"Обязательный платёж учтён"
         "TX_PUT"->"Операция сохранена";"TX_DELETE"->"Операция удалена";"TX_RESTORE"->"Операция восстановлена"
         "SAVINGS_ADD"->"Пополнение накоплений";"SAVINGS_WITHDRAW"->"Снятие накоплений";"GOAL_CREATE"->"Цель создана"
         "GOAL_FUND"->"Взнос в цель";"GOAL_WITHDRAW"->"Возврат из цели";"GOAL_DELETE"->"Цель удалена"

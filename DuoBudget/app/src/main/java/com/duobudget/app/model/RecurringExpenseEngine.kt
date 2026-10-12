@@ -8,7 +8,7 @@ object RecurringExpenseEngine {
     fun dueDate(rule:RecurringExpense,month:YearMonth)=month.atDay(rule.dayOfMonth.coerceAtMost(month.lengthOfMonth()))
 
     fun validate(rules: List<RecurringExpense>, data: BudgetData) {
-        require(rules.size <= 100 && rules.distinctBy { it.id }.size == rules.size) { "Можно добавить не более 100 обязательных расходов" }
+        require(rules.count { !it.deleted } <= 100 && rules.size <= 1000 && rules.distinctBy { it.id }.size == rules.size) { "Можно добавить не более 100 обязательных расходов" }
         rules.forEach { r ->
             require(r.id.matches(Regex("[A-Za-z0-9_-]{1,60}")))
             require(r.name.isNotBlank() && r.name.length <= 60 && r.category.isNotBlank() && r.category.length <= 60) { "Заполните название и категорию" }
@@ -27,23 +27,23 @@ object RecurringExpenseEngine {
         validate(rules, data)
         val current = YearMonth.from(today)
         val result = mutableListOf<BudgetCommand>()
-        var next = data
+        var next = data.copy(recurringExpenses=rules)
         val existing=data.transactions.associateBy{it.id}.toMutableMap()
-        rules.filter { it.enabled && data.accounts.any { a -> a.id==it.accountId&&!a.archived } }.forEach { r ->
+        rules.filter { !it.deleted && it.enabled && data.accounts.any { a -> a.id==it.accountId&&!a.archived } }.forEach { r ->
             var month = YearMonth.parse(r.startMonth)
             if(r.resumeMonth.isNotBlank())month=maxOf(month,YearMonth.parse(r.resumeMonth))
             while (month <= current) {
                 val id = transactionId(r, month)
                 val old = existing[id]
                 val due=dueDate(r,month)
-                if ((old == null && due<=today) || (old!=null && month == current && r.id == updateCurrentRuleId && !old.deleted && old.createdByUid == actor)) {
+                if ((old == null && due<=today) || (old!=null && month == current && r.id == updateCurrentRuleId && !old.deleted )) {
                     val t = MoneyTransaction(id = id, type = TransactionType.EXPENSE, amount = r.amount,
                         category = r.category, note = "Обязательный расход · ${r.name}", accountId = r.accountId,
                         payer = r.payer, payerName = if (r.payer == Payer.ME) next.myName else next.partnerName,
                         createdByUid = actor, createdAt = old?.createdAt?:due.atStartOfDay(), updatedAt = today.atStartOfDay(),
                         version = old?.version ?: 1L)
                     if (old == null || t.copy(version = old.version, updatedAt = old.updatedAt) != old) {
-                        val c = BudgetCommand(kind = "TX_PUT", actorId = actor, tx = t)
+                        val c = BudgetCommand(kind = "RECURRING_POST", actorId = actor, entityId=r.id, text=month.toString(), extra=today.toString(), value=if(old==null)0L else 1L,tx=t)
                         next = BudgetEngine.apply(next, c)
                         existing[id]=next.transactions.last()
                         result.add(c)

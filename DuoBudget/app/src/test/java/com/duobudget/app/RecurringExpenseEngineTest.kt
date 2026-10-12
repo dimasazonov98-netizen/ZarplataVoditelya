@@ -12,7 +12,7 @@ class RecurringExpenseEngineTest {
     private val actor="device-A"
     private val rule=RecurringExpense(id="rent",name="Аренда",amount=3500000,category="Жильё",accountId="cash",startMonth="2023-11")
     private val today=LocalDate.of(2024,1,15)
-    private fun apply(data:BudgetData,commands:List<BudgetCommand>)=commands.fold(data,BudgetEngine::apply)
+    private fun apply(data:BudgetData,commands:List<BudgetCommand>,rules:List<RecurringExpense> = listOf(rule))=commands.fold(data.copy(recurringExpenses=rules),BudgetEngine::apply)
 
     @Test fun catchUpAcrossYearDeductsEveryMonthExactlyOnce(){
         val start=BudgetData(accounts=listOf(MoneyAccount("cash","Наличные",20000000)))
@@ -29,7 +29,7 @@ class RecurringExpenseEngineTest {
         val edited=rule.copy(amount=4000000)
         val changes=RecurringExpenseEngine.commands(data,listOf(edited),actor,today,rule.id)
         assertEquals(1,changes.size)
-        val result=apply(data,changes)
+        val result=apply(data,changes,listOf(edited))
         assertEquals(3,result.transactions.size)
         assertEquals(3500000L,BudgetEngine.netExpenses(result,YearMonth.of(2023,12)))
         assertEquals(4000000L,BudgetEngine.netExpenses(result,YearMonth.of(2024,1)))
@@ -57,7 +57,7 @@ class RecurringExpenseEngineTest {
         val commands=RecurringExpenseEngine.commands(BudgetData(),listOf(r),actor,LocalDate.of(2023,2,28))
         assertEquals(LocalDate.of(2023,2,28),commands.single().tx!!.createdAt.toLocalDate())
         val old=apply(BudgetData(),RecurringExpenseEngine.commands(BudgetData(),listOf(rule),actor,today))
-        val changed=apply(old,RecurringExpenseEngine.commands(old,listOf(rule.copy(dayOfMonth=25,amount=4000000)),actor,today,rule.id))
+        val changed=apply(old,RecurringExpenseEngine.commands(old,listOf(rule.copy(dayOfMonth=25,amount=4000000)),actor,today,rule.id),listOf(rule.copy(dayOfMonth=25,amount=4000000)))
         assertEquals(LocalDate.of(2024,1,1),changed.transactions.first{YearMonth.from(it.createdAt)==YearMonth.of(2024,1)}.createdAt.toLocalDate())
     }
     @Test fun resumedRuleSkipsPausedMonths(){

@@ -21,6 +21,34 @@ object BudgetEngine {
     fun apply(s: BudgetData, c: BudgetCommand): BudgetData {
         text(c.id, 80); text(c.actorId, 80)
         return when (c.kind) {
+            "RECURRING_PUT" -> {
+                val r=requireNotNull(c.recurring)
+                require(!r.deleted && s.recurringExpenses.none { it.id==r.id&&it.deleted }) { "Обязательный расход уже удалён" }
+                val next=s.copy(recurringExpenses=s.recurringExpenses.filterNot { it.id==r.id }+r)
+                RecurringExpenseEngine.validate(next.recurringExpenses,next)
+                require(!r.enabled||s.accounts.any { it.id==r.accountId&&!it.archived }) { "Выберите активный счёт" }
+                next
+            }
+            "RECURRING_DELETE" -> s.copy(recurringExpenses=s.recurringExpenses.map { if(it.id==c.entityId)it.copy(deleted=true,enabled=false)else it })
+            "RECURRING_POST" -> {
+                val r=s.recurringExpenses.firstOrNull { it.id==c.entityId&&!it.deleted&&it.enabled }?:error("Обязательный расход недоступен")
+                val month=YearMonth.parse(c.text);val today=LocalDate.parse(c.extra)
+                require(today<=LocalDate.now().plusDays(1) && month<=YearMonth.from(today))
+                require(month>=YearMonth.parse(r.startMonth) && (r.resumeMonth.isBlank()||month>=YearMonth.parse(r.resumeMonth)))
+                val id=RecurringExpenseEngine.transactionId(r,month)
+                val old=s.transactions.firstOrNull { it.id==id }
+                if(old!=null&&(old.deleted||c.value!=1L||month!=YearMonth.from(today)))s else {
+                    val due=RecurringExpenseEngine.dueDate(r,month)
+                    require(old!=null||due<=today) { "Дата оплаты ещё не наступила" }
+                    require(s.accounts.any { it.id==r.accountId&&!it.archived }) { "Счёт недоступен" }
+                    require(old!=null||s.transactions.size<20000)
+                    val t=MoneyTransaction(id=id,type=TransactionType.EXPENSE,amount=r.amount,category=r.category,
+                        note="Обязательный расход · ${r.name}",accountId=r.accountId,payer=r.payer,
+                        payerName=if(r.payer==Payer.ME)s.myName else s.partnerName,createdByUid=old?.createdByUid?:c.actorId,
+                        createdAt=old?.createdAt?:due.atStartOfDay(),updatedAt=today.atStartOfDay(),version=(old?.version?:0L)+1)
+                    s.copy(transactions=s.transactions.filterNot { it.id==id }+t)
+                }
+            }
             "TX_PUT" -> {
                 val t = requireNotNull(c.tx)
                 text(t.id, 80); amount(t.amount); text(t.category, 60); text(t.note, 500, true); text(t.payerName, 60, true)
