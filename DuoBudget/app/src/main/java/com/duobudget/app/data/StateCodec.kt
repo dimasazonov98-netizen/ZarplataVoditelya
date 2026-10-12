@@ -7,9 +7,9 @@ import java.time.OffsetDateTime
 
 object StateCodec {
     fun recurring(r: RecurringExpense) = JSONObject().put("id",r.id).put("name",r.name).put("amount",r.amount)
-        .put("category",r.category).put("accountId",r.accountId).put("payer",r.payer.name).put("startMonth",r.startMonth).put("enabled",r.enabled).put("resumeMonth",r.resumeMonth)
+        .put("category",r.category).put("accountId",r.accountId).put("payer",r.payer.name).put("startMonth",r.startMonth).put("enabled",r.enabled).put("resumeMonth",r.resumeMonth).put("dayOfMonth",r.dayOfMonth).put("reminderEnabled",r.reminderEnabled)
     fun recurring(j: JSONObject) = RecurringExpense(j.getString("id"),j.getString("name"),j.whole("amount"),
-        j.getString("category"),j.getString("accountId"),Payer.valueOf(j.getString("payer")),j.getString("startMonth"),j.optBoolean("enabled",true),j.optString("resumeMonth"))
+        j.getString("category"),j.getString("accountId"),Payer.valueOf(j.getString("payer")),j.getString("startMonth"),j.optBoolean("enabled",true),j.optString("resumeMonth"),j.whole("dayOfMonth",1L).also{require(it in 1L..31L)}.toInt(),j.optBoolean("reminderEnabled",true))
     fun recurringList(j: JSONObject): List<RecurringExpense> = if(j.has("recurringExpenses"))objects(j.getJSONArray("recurringExpenses")).map(::recurring) else emptyList()
     private fun JSONObject.whole(key:String,default:Long?=null):Long {
         if(!has(key)&&default!=null)return default

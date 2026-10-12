@@ -36,6 +36,6 @@ data class RecurringExpense(
     val id: String = UUID.randomUUID().toString(), val name: String, val amount: Long,
     val category: String, val accountId: String, val payer: Payer = Payer.ME,
     val startMonth: String = java.time.YearMonth.now().toString(), val enabled: Boolean = true,
-    val resumeMonth: String = ""
+    val resumeMonth: String = "", val dayOfMonth: Int = 1, val reminderEnabled: Boolean = true
 )
 

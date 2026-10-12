@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.duobudget.app.ui.DuoBudgetApp
+import com.duobudget.app.reminders.PaymentReminders
 import com.duobudget.app.ui.theme.DuoBudgetTheme
 import com.duobudget.app.ui.theme.ThemePreferences
 
@@ -29,6 +30,7 @@ class MainActivity:AppCompatActivity() {
     private val unlocked=mutableStateOf(false)
     private val hasUnlocked=mutableStateOf(false)
     private val expenseRequest=mutableStateOf(0)
+    private val recurringRequest=mutableStateOf(0)
     private var promptShowing=false
     private var credentialShowing=false
     private var attempted=false
@@ -47,13 +49,14 @@ class MainActivity:AppCompatActivity() {
         secureDevice=keyguard.isDeviceSecure
         if(!biometric&&!secureDevice)unlock()
         if(intent?.getBooleanExtra("openAddExpense",false)==true){expenseRequest.value++;intent.removeExtra("openAddExpense")}
+        if(intent?.getBooleanExtra("openRecurringExpenses",false)==true){recurringRequest.value++;intent.removeExtra("openRecurringExpenses")}
         setContent{
             DuoBudgetTheme{
                 Box(Modifier.fillMaxSize()){
                     // Keep drafts and document-picker callbacks alive when the app locks.
                     if(hasUnlocked.value){
                         val privacy=if(unlocked.value)Modifier else Modifier.alpha(0f).clearAndSetSemantics{}
-                        Box(Modifier.fillMaxSize().then(privacy)){DuoBudgetApp(expenseRequest.value,unlocked.value)}
+                        Box(Modifier.fillMaxSize().then(privacy)){DuoBudgetApp(expenseRequest.value,unlocked.value,openRecurringRequest=recurringRequest.value)}
                     }
                     if(!unlocked.value){
                         Surface(Modifier.fillMaxSize()){
@@ -70,8 +73,8 @@ class MainActivity:AppCompatActivity() {
             }
         }
     }
-    override fun onNewIntent(intent:Intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openAddExpense",false)){expenseRequest.value++;intent.removeExtra("openAddExpense")}}
-    override fun onResume(){super.onResume();if(!unlocked.value&&!attempted){attempted=true;showPrompt()}}
+    override fun onNewIntent(intent:Intent){super.onNewIntent(intent);setIntent(intent);if(intent.getBooleanExtra("openAddExpense",false)){expenseRequest.value++;intent.removeExtra("openAddExpense")};if(intent.getBooleanExtra("openRecurringExpenses",false)){recurringRequest.value++;intent.removeExtra("openRecurringExpenses")}}
+    override fun onResume(){super.onResume();runCatching{PaymentReminders.rescheduleAll(this)};if(!unlocked.value&&!attempted){attempted=true;showPrompt()}}
     override fun onStop(){
         super.onStop()
         if(!isChangingConfigurations&&(biometric||secureDevice)){

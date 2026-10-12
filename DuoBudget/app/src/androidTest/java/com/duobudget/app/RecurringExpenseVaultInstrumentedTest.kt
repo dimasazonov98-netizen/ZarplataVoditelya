@@ -17,7 +17,7 @@ import java.util.UUID
 class RecurringExpenseVaultInstrumentedTest {
     private val context get()=ApplicationProvider.getApplicationContext<Context>()
     private fun name()="fixed-test.${UUID.randomUUID()}.vault"
-    private val r=RecurringExpense(id="credit",name="Кредит",amount=700000,category="Кредит",accountId="sber",startMonth="2023-11")
+    private val r=RecurringExpense(id="credit",name="Кредит",amount=700000,category="Кредит",accountId="sber",startMonth="2023-11",dayOfMonth=15,reminderEnabled=false)
     private val november=LocalDate.of(2023,11,15)
     private val january=LocalDate.of(2024,1,15)
 

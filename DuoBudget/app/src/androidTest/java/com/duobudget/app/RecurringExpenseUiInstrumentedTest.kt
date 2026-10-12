@@ -8,6 +8,7 @@ import com.duobudget.app.model.*
 import com.duobudget.app.viewmodel.AppViewModel
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.YearMonth
@@ -16,6 +17,7 @@ import java.time.YearMonth
 class RecurringExpenseUiInstrumentedTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     private lateinit var vm:AppViewModel
+    @Before fun permitNotifications(){grantTestNotificationPermission()}
     private fun waitFor(expected:()->Boolean){rule.waitForIdle();rule.waitUntil(20000){!vm.busy.value&&expected()};rule.waitForIdle()}
     private fun tap(tag:String){
         val n=rule.onNodeWithTag(tag)
@@ -54,5 +56,32 @@ class RecurringExpenseUiInstrumentedTest {
         tap("nav-home")
         rule.onNodeWithText("Наш бюджет").assertExists()
         assertEquals(-800000L,BudgetEngine.available(vm.data.value))
+    }
+    @Test fun savePaymentDateAndOpenTheRulesFromNotificationIntent(){
+        rule.runOnUiThread{vm=ViewModelProvider(rule.activity)[AppViewModel::class.java];vm.reset()}
+        waitFor{vm.recurringExpenses.value.isEmpty()}
+        rule.runOnUiThread{vm.clearMessage()};rule.waitForIdle()
+        val originalIntent=android.content.Intent(rule.activity.intent)
+        try {
+            tap("tab-settings");tap("fixed-open");tap("fixed-add")
+            rule.onNodeWithTag("fixed-name").performTextReplacement("Аренда")
+            rule.onNodeWithTag("fixed-amount").performTextReplacement("35000")
+            rule.onNodeWithTag("fixed-month").performScrollTo().performTextReplacement(YearMonth.now().plusMonths(1).format(java.time.format.DateTimeFormatter.ofPattern("MM.uuuu")))
+            rule.onNodeWithTag("fixed-day").performScrollTo().performTextReplacement("31")
+            tap("fixed-reminder")
+            tap("fixed-save")
+            waitFor{vm.recurringExpenses.value.size==1}
+            assertEquals(31,vm.recurringExpenses.value.single().dayOfMonth)
+            assertFalse(vm.recurringExpenses.value.single().reminderEnabled)
+            assertTrue(vm.data.value.transactions.isEmpty())
+            tap("nav-home")
+            rule.runOnUiThread{rule.activity.startActivity(android.content.Intent(rule.activity,MainActivity::class.java).putExtra("openRecurringExpenses",true).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP))}
+            rule.waitForIdle();rule.onNodeWithText("Обязательные расходы").assertExists()
+            tap("nav-home");rule.onNodeWithText("Наш бюджет").assertExists()
+        }finally{
+            rule.runOnUiThread{rule.activity.intent=originalIntent;vm.reset()}
+            waitFor{vm.recurringExpenses.value.isEmpty()}
+            rule.runOnUiThread{vm.clearMessage()}
+        }
     }
 }

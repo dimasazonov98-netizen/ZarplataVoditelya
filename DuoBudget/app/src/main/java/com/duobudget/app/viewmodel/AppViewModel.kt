@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.duobudget.app.cloud.BudgetCloudService
 import com.duobudget.app.data.*
 import com.duobudget.app.model.*
+import com.duobudget.app.reminders.PaymentReminders
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -52,6 +53,7 @@ class AppViewModel(application:Application):AndroidViewModel(application) {
         val s=store?:return
         _data.value=s.data();_session.value=s.session();_dark.value=s.dark();_changes.value=s.changes().sortedByDescending{it.id};_members.value=s.members();_pending.value=s.pending().size
         _recurring.value=s.recurringExpenses()
+        runCatching{PaymentReminders.sync(app,_recurring.value,_data.value)}.onFailure{_message.value="Не удалось обновить напоминания. Открой раздел обязательных расходов повторно."}
     }
     private fun action(block:()->Unit,onSuccess:(()->Unit)?=null) {
         if(_busy.value)return

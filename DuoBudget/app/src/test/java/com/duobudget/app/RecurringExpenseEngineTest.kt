@@ -45,6 +45,21 @@ class RecurringExpenseEngineTest {
         assertTrue(RecurringExpenseEngine.commands(BudgetData(),listOf(rule.copy(startMonth="2024-02")),actor,today).isEmpty())
         assertTrue(RecurringExpenseEngine.commands(BudgetData(),listOf(rule.copy(enabled=false)),actor,today).isEmpty())
     }
+    @Test fun expenseIsCreatedOnPaymentDateNotBeforeIt(){
+        val r=rule.copy(startMonth="2024-01",dayOfMonth=20)
+        assertTrue(RecurringExpenseEngine.commands(BudgetData(),listOf(r),actor,today).isEmpty())
+        val commands=RecurringExpenseEngine.commands(BudgetData(),listOf(r),actor,LocalDate.of(2024,1,20))
+        assertEquals(1,commands.size)
+        assertEquals(LocalDate.of(2024,1,20),commands.single().tx!!.createdAt.toLocalDate())
+    }
+    @Test fun shortMonthsClampDateAndChangingDayKeepsRecordedHistory(){
+        val r=rule.copy(startMonth="2023-02",dayOfMonth=31)
+        val commands=RecurringExpenseEngine.commands(BudgetData(),listOf(r),actor,LocalDate.of(2023,2,28))
+        assertEquals(LocalDate.of(2023,2,28),commands.single().tx!!.createdAt.toLocalDate())
+        val old=apply(BudgetData(),RecurringExpenseEngine.commands(BudgetData(),listOf(rule),actor,today))
+        val changed=apply(old,RecurringExpenseEngine.commands(old,listOf(rule.copy(dayOfMonth=25,amount=4000000)),actor,today,rule.id))
+        assertEquals(LocalDate.of(2024,1,1),changed.transactions.first{YearMonth.from(it.createdAt)==YearMonth.of(2024,1)}.createdAt.toLocalDate())
+    }
     @Test fun resumedRuleSkipsPausedMonths(){
         val r=rule.copy(resumeMonth="2024-01")
         val result=apply(BudgetData(),RecurringExpenseEngine.commands(BudgetData(),listOf(r),actor,today))
@@ -57,7 +72,7 @@ class RecurringExpenseEngineTest {
         assertTrue(RecurringExpenseEngine.commands(data,listOf(rule),actor,today).isEmpty())
     }
     @Test fun rulesAndDecimalAmountsSurviveCodecRoundTrip(){
-        val r=rule.copy(amount=700075,payer=Payer.PARTNER,enabled=false,resumeMonth="2024-01")
+        val r=rule.copy(amount=700075,payer=Payer.PARTNER,enabled=false,resumeMonth="2024-01",dayOfMonth=31,reminderEnabled=false)
         assertEquals(r,StateCodec.recurring(StateCodec.recurring(r)))
         assertTrue(StateCodec.recurringList(JSONObject()).isEmpty())
     }

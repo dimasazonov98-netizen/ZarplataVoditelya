@@ -134,7 +134,7 @@ private fun Enter(index:Int,content:@Composable ()->Unit){
 }
 
 @Composable
-fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=viewModel()) {
+fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=viewModel(),openRecurringRequest:Int=0) {
     val error by vm.storageError.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -179,6 +179,7 @@ fun DuoBudgetApp(openExpenseRequest:Int=0,unlocked:Boolean=true,vm:AppViewModel=
                 LaunchedEffect(unlocked){if(!unlocked)addSheet=false}
                 BackHandler(enabled=unlocked&&route!="home"&&!addSheet){goBack()}
                 LaunchedEffect(openExpenseRequest){if(openExpenseRequest>0)nav.navigate("entry"){launchSingleTop=true}}
+                LaunchedEffect(openRecurringRequest){if(openRecurringRequest>0)nav.navigate("fixed"){launchSingleTop=true}}
                 Scaffold(
                     modifier=Modifier.testTag("app"),
                     containerColor=Color.Transparent,

@@ -1,5 +1,11 @@
 package com.duobudget.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,12 +17,18 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.duobudget.app.model.*
 import com.duobudget.app.viewmodel.AppViewModel
+import com.duobudget.app.reminders.PaymentReminders
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
@@ -24,6 +36,26 @@ import java.util.UUID
 
 private val monthFormat=DateTimeFormatter.ofPattern("MM.uuuu").withResolverStyle(ResolverStyle.STRICT)
 private fun recurringMoney(value:Long)=Money.edit(value)+" ₽"
+
+@Composable private fun ReminderPermissionControls(){
+    val context=LocalContext.current
+    val owner=LocalLifecycleOwner.current
+    var allowed by remember{mutableStateOf(PaymentReminders.canNotify(context))}
+    val ask=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){
+        allowed=PaymentReminders.canNotify(context);PaymentReminders.rescheduleAll(context)
+    }
+    DisposableEffect(owner){
+        val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_RESUME){allowed=PaymentReminders.canNotify(context);PaymentReminders.rescheduleAll(context)}}
+        owner.lifecycle.addObserver(observer);onDispose{owner.lifecycle.removeObserver(observer)}
+    }
+    if(!allowed)Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+        Text("Уведомления выключены. Разреши их, чтобы получать напоминания за день до оплаты.",color=MaterialTheme.colorScheme.error)
+        OutlinedButton(onClick={
+            if(Build.VERSION.SDK_INT>=33&&!PaymentReminders.hasPermission(context)&&!PaymentReminders.hasAskedPermission(context)){PaymentReminders.markPermissionAsked(context);ask.launch(Manifest.permission.POST_NOTIFICATIONS)}
+            else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))
+        },modifier=Modifier.fillMaxWidth()){Text("Разрешить уведомления")}
+    }
+}
 
 @Composable
 fun RecurringExpensesScreen(vm:AppViewModel,onAdd:()->Unit,onEdit:(String)->Unit){
@@ -36,7 +68,8 @@ fun RecurringExpensesScreen(vm:AppViewModel,onAdd:()->Unit,onEdit:(String)->Unit
     val total=rules.filter{it.enabled&&YearMonth.parse(it.startMonth)<=current&&data.accounts.any{a->a.id==it.accountId&&!a.archived}}.sumOf{it.amount}
     LazyColumn(Modifier.fillMaxSize().testTag("screen-list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Text("Обязательные расходы",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)}
-        item{Text("Кредит, ЖКХ, аренда — один раз в месяц. Расходы сразу входят в операции и уменьшают доступный остаток. Пропущенные месяцы добавятся при открытии приложения.")}
+        item{Text("Кредит, ЖКХ, аренда — один раз в месяц в выбранную дату. Наступившие платежи входят в операции при открытии приложения. Напомним за день до оплаты в 09:00.")}
+        item{ReminderPermissionControls()}
         item{Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainer.copy(alpha=.66f))){Column(Modifier.padding(16.dp)){
             Text("Ежемесячно по активным правилам",style=MaterialTheme.typography.bodyMedium)
             Text(recurringMoney(total),style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
@@ -51,6 +84,8 @@ fun RecurringExpensesScreen(vm:AppViewModel,onAdd:()->Unit,onEdit:(String)->Unit
                 Text(recurringMoney(r.amount)+" / месяц",style=MaterialTheme.typography.titleMedium)
                 Text(r.category+" · "+(account?.name?:"Счёт не найден")+" · "+vm.payerName(r.payer))
                 Text("С "+YearMonth.parse(r.startMonth).format(monthFormat),style=MaterialTheme.typography.bodySmall)
+                Text("Оплата: ${r.dayOfMonth}-го числа · ближайшая "+PaymentReminderSchedule.nextPayment(r).format(DateTimeFormatter.ofPattern("dd.MM.uuuu")))
+                Text(if(r.reminderEnabled)"Напоминание за 1 день в 09:00"else"Напоминание выключено",style=MaterialTheme.typography.bodySmall)
                 if(account==null||account.archived)Text("Счёт недоступен. Измени правило, чтобы расходы продолжили добавляться.",color=MaterialTheme.colorScheme.error)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
                     Text(if(r.enabled)"Учитывать каждый месяц"else"Приостановлено",Modifier.weight(1f).padding(top=12.dp))
@@ -70,6 +105,14 @@ fun RecurringExpensesScreen(vm:AppViewModel,onAdd:()->Unit,onEdit:(String)->Unit
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RecurringExpenseForm(vm:AppViewModel,id:String?,onDone:()->Unit){
+    val context=LocalContext.current
+    var waitingForPermission by rememberSaveable{mutableStateOf(false)}
+    var attached by remember{mutableStateOf(true)}
+    DisposableEffect(Unit){onDispose{attached=false}}
+    val ask=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){
+        PaymentReminders.rescheduleAll(context)
+        if(waitingForPermission){waitingForPermission=false;onDone()}
+    }
     val data by vm.data.collectAsStateWithLifecycle()
     val rules by vm.recurringExpenses.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
@@ -82,6 +125,9 @@ fun RecurringExpenseForm(vm:AppViewModel,id:String?,onDone:()->Unit){
     var payer by rememberSaveable(id){mutableStateOf(old?.payer?:vm.myPayer)}
     var firstMonth by rememberSaveable(id){mutableStateOf(YearMonth.parse(old?.startMonth?:YearMonth.now().toString()).format(monthFormat))}
     var enabled by rememberSaveable(id){mutableStateOf(old?.enabled?:true)}
+    var paymentDay by rememberSaveable(id){mutableStateOf((old?.dayOfMonth?:1).toString())}
+    var reminder by rememberSaveable(id){mutableStateOf(old?.reminderEnabled?:true)}
+    val day=paymentDay.toIntOrNull()?.takeIf{it in 1..31}
     val parsed=Money.parse(amount)
     val start=runCatching{YearMonth.parse(firstMonth,monthFormat)}.getOrNull()?.takeIf{it.year>=2000}
     val validAccount=data.accounts.any{it.id==account&&(!enabled||!it.archived)}
@@ -94,7 +140,9 @@ fun RecurringExpenseForm(vm:AppViewModel,id:String?,onDone:()->Unit){
             OutlinedTextField(name,{name=it.take(60)},label={Text("Название платежа")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("fixed-name"))
             OutlinedTextField(amount,{amount=it.take(64)},label={Text("Сумма каждый месяц, ₽")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),isError=amount.isNotBlank()&&(parsed==null||parsed<=0),modifier=Modifier.fillMaxWidth().testTag("fixed-amount"))
             OutlinedTextField(firstMonth,{firstMonth=it.take(7)},label={Text("Первый месяц · ММ.ГГГГ")},singleLine=true,isError=start==null,modifier=Modifier.fillMaxWidth().testTag("fixed-month"))
-            Text("Расход учитывается 1-го числа. Если месяц уже наступил, запись появится при сохранении. Изменение суммы обновит текущий месяц и следующие; прошлые записи останутся прежними.",style=MaterialTheme.typography.bodySmall)
+            OutlinedTextField(paymentDay,{paymentDay=it.filter(Char::isDigit).take(2)},label={Text("День оплаты каждый месяц · 1–31")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),isError=day==null,modifier=Modifier.fillMaxWidth().testTag("fixed-day"))
+            Text("Если такого числа нет, используется последний день месяца. Расход добавится в дату оплаты при открытии приложения. Уже записанные операции не переносятся при смене даты.",style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Напомнить за 1 день в 09:00",Modifier.weight(1f).padding(top=12.dp));Switch(checked=reminder,onCheckedChange={reminder=it},modifier=Modifier.testTag("fixed-reminder"))}
             Text("Категория",fontWeight=FontWeight.Bold)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)){vm.categories.forEach{c->FilterChip(selected=category==c,onClick={category=c},label={Text(c)})}}
             Text("Счёт",fontWeight=FontWeight.Bold)
@@ -105,7 +153,12 @@ fun RecurringExpenseForm(vm:AppViewModel,id:String?,onDone:()->Unit){
         }
         HorizontalDivider()
         Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Button(onClick={vm.saveRecurring(RecurringExpense(ruleId,name.trim(),parsed!!,category,account,payer,start!!.toString(),enabled,old?.resumeMonth.orEmpty()),onDone)},enabled=!busy&&name.isNotBlank()&&parsed!=null&&parsed>0&&start!=null&&validAccount,modifier=Modifier.fillMaxWidth().testTag("fixed-save")){Text("Сохранить правило")}
+            Button(onClick={vm.saveRecurring(RecurringExpense(ruleId,name.trim(),parsed!!,category,account,payer,start!!.toString(),enabled,old?.resumeMonth.orEmpty(),day!!,reminder)){
+                if(attached){
+                    if(enabled&&reminder&&Build.VERSION.SDK_INT>=33&&!PaymentReminders.hasPermission(context)&&!PaymentReminders.hasAskedPermission(context)){waitingForPermission=true;PaymentReminders.markPermissionAsked(context);ask.launch(Manifest.permission.POST_NOTIFICATIONS)}
+                    else onDone()
+                }
+            }},enabled=!busy&&!waitingForPermission&&name.isNotBlank()&&parsed!=null&&parsed>0&&start!=null&&day!=null&&validAccount,modifier=Modifier.fillMaxWidth().testTag("fixed-save")){Text("Сохранить правило")}
             OutlinedButton(onClick=onDone,modifier=Modifier.fillMaxWidth()){Text("Отмена")}
         }
     }
