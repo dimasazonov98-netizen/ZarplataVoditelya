@@ -57,6 +57,12 @@ class NavigationTouchInstrumentedTest {
         touchTag("nav-home")
         rule.onNodeWithText("Наш бюджет").assertExists()
 
+        // Android handles Back in the IME first until its window has finished closing.
+        rule.waitUntil(10000){
+            androidx.core.view.ViewCompat.getRootWindowInsets(rule.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())!=true
+        }
+
         touchTag("tab-settings")
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         rule.waitForIdle()
